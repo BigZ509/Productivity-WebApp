@@ -1,0 +1,23 @@
+{
+  "name": "ZBXP Life RPG",
+  "short_name": "ZBXP",
+  "description": "Social life RPG for productivity, fitness, and consistency.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#05070f",
+  "theme_color": "#0b0f1c",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
