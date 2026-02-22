@@ -1074,14 +1074,14 @@ function LeaderboardPage() {
   )
 }
 
-function AppShell({ onSignOut, onProfileRefresh, statPulse, resetStatPulse, weeklyXP }) {
-  const { pathConfig } = useApp()
+function AppShell({ onSignOut, onProfileRefresh, statPulse, onClearXpPulse, onXpGain, weeklyXP }) {
+  const { pathConfig, profile } = useApp()
 
   useEffect(() => {
     if (!statPulse) return
-    const timeout = setTimeout(() => resetStatPulse(), 1000)
+    const timeout = setTimeout(() => onClearXpPulse(), 1000)
     return () => clearTimeout(timeout)
-  }, [statPulse, resetStatPulse])
+  }, [statPulse, onClearXpPulse])
 
   return (
     <div className="app-shell" style={{ '--path-accent': pathConfig.accent, '--path-accent-soft': pathConfig.accentSoft }}>
@@ -1093,7 +1093,7 @@ function AppShell({ onSignOut, onProfileRefresh, statPulse, resetStatPulse, week
         <button type="button" className="signout-btn" onClick={onSignOut}>Sign out</button>
       </header>
 
-      <ProfileHUD profile={useApp().profile} weeklyXP={weeklyXP} statPulse={statPulse} />
+      <ProfileHUD profile={profile} weeklyXP={weeklyXP} statPulse={statPulse} />
 
       <nav className="hud-nav" aria-label="Primary navigation">
         <NavLink to="/dashboard" className={({ isActive }) => cx('hud-tab', isActive && 'is-active')}>
@@ -1117,8 +1117,8 @@ function AppShell({ onSignOut, onProfileRefresh, statPulse, resetStatPulse, week
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/quests" element={<QuestsPage onProfileRefresh={onProfileRefresh} onXpGain={resetStatPulse} />} />
-          <Route path="/gym" element={<GymPage onProfileRefresh={onProfileRefresh} onXpGain={resetStatPulse} />} />
+          <Route path="/quests" element={<QuestsPage onProfileRefresh={onProfileRefresh} onXpGain={onXpGain} />} />
+          <Route path="/gym" element={<GymPage onProfileRefresh={onProfileRefresh} onXpGain={onXpGain} />} />
           <Route path="/stats" element={<StatsPage />} />
           <Route path="/leaderboard" element={<LeaderboardPage />} />
         </Routes>
@@ -1197,6 +1197,10 @@ function App() {
     setXpPulse(Number(amount || 0))
   }
 
+  const clearXpPulse = () => {
+    setXpPulse(0)
+  }
+
   const weeklyXP = useMemo(() => {
     if (!profile?.total_xp) return 0
     return profile.total_xp
@@ -1236,7 +1240,8 @@ function App() {
         onSignOut={handleSignOut}
         onProfileRefresh={refreshProfile}
         statPulse={xpPulse}
-        resetStatPulse={pushXpGain}
+        onClearXpPulse={clearXpPulse}
+        onXpGain={pushXpGain}
         weeklyXP={weeklyXP}
       />
     </AppContext.Provider>
