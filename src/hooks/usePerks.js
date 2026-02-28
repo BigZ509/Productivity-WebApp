@@ -39,6 +39,12 @@ export function usePerks() {
       if (!isActive) return
       setIsLoading(true)
 
+      if (!supabase) {
+        reset()
+        setIsLoading(false)
+        return
+      }
+
       const {
         data: { session },
       } = await supabase.auth.getSession()
@@ -75,9 +81,9 @@ export function usePerks() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
+    } = supabase?.auth.onAuthStateChange(() => {
       loadPerks()
-    })
+    }) || { data: { subscription: { unsubscribe: () => {} } } }
 
     return () => {
       isActive = false
