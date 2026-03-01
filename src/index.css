@@ -418,15 +418,15 @@ body::after {
 
 /* DAILY PLANNER */
 .planner-time-block { display:flex; flex-direction:column; gap:0; }
-.time-slot { display:flex; align-items:stretch; border-bottom:1px solid var(--border); min-height:54px; cursor:pointer; transition:background 0.15s; }
+.time-slot { display:flex; align-items:stretch; border-bottom:1px solid var(--border); min-height:68px; cursor:pointer; transition:background 0.15s; }
 .time-slot:hover { background:rgba(0,200,255,0.03); }
 .time-slot:active { background:rgba(0,200,255,0.06); }
-.time-slot-time { font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--text-dim); width:52px; flex-shrink:0; padding:12px 8px; border-right:1px solid var(--border); display:flex; align-items:flex-start; justify-content:flex-end; }
-.time-slot-content { flex:1; padding:10px 14px; display:flex; flex-direction:column; justify-content:center; }
-.time-slot-empty { font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--text-dim); opacity:0.4; }
+.time-slot-time { font-family:'Share Tech Mono',monospace; font-size:15px; font-weight:700; letter-spacing:0.8px; color:#ecfeff; width:78px; flex-shrink:0; padding:14px 10px; border-right:1px solid rgba(0,200,255,0.3); display:flex; align-items:flex-start; justify-content:flex-end; text-shadow:0 0 10px rgba(34,211,238,0.28); }
+.time-slot-content { flex:1; padding:12px 16px; display:flex; flex-direction:column; justify-content:center; }
+.time-slot-empty { font-family:'Share Tech Mono',monospace; font-size:13px; color:#dbeafe; opacity:0.6; }
 .time-slot.filled .time-slot-empty { display:none; }
-.time-slot-title { font-size:13px; font-weight:700; color:var(--text); }
-.time-slot-sub { font-family:'Share Tech Mono',monospace; font-size:9px; color:var(--text-dim); margin-top:2px; }
+.time-slot-title { font-size:18px; font-weight:800; line-height:1.2; color:#f8fafc; }
+.time-slot-sub { font-family:'Share Tech Mono',monospace; font-size:13px; line-height:1.45; color:#bfdbfe; margin-top:4px; }
 .time-slot.study .time-slot-title { color:var(--cyan); }
 .time-slot.gym .time-slot-title { color:var(--green); }
 .time-slot.business .time-slot-title { color:var(--gold); }
@@ -1149,11 +1149,13 @@ body::after {
 }
 
 .planner-time-input {
-  max-width: 170px;
-  min-width: 150px !important;
+  max-width: 210px;
+  min-width: 180px !important;
   flex: 0 0 auto !important;
   font-weight: 700;
-  color: #e2e8f0;
+  font-size: 16px;
+  letter-spacing: 0.4px;
+  color: #f8fafc;
   border-color: rgba(0,200,255,0.4);
   background: rgba(2, 8, 24, 0.9);
 }
@@ -1761,8 +1763,880 @@ body::after {
   border-color: rgba(255,68,68,0.45);
 }
 
+/* GUILD RED LAYOUT (zbxp_guild_red-inspired) */
+.guild-red-v1 {
+  --guild-red: #ff2222;
+  --guild-orange: #ff6600;
+  --guild-panel: #0f0303;
+  --guild-border: rgba(255,34,34,0.2);
+}
+
+.guild-red-v1 .panel {
+  background: var(--guild-panel);
+  border-color: var(--guild-border);
+}
+
+.guild-red-header {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px;
+  margin-bottom: 12px;
+  border: 1px solid var(--guild-border);
+  background: linear-gradient(180deg, rgba(255,34,34,0.06), rgba(10,2,2,0.45));
+}
+
+.guild-red-emblem {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  font-size: 30px;
+  border: 1px solid rgba(255,34,34,0.35);
+  background: linear-gradient(135deg, rgba(255,34,34,0.14), rgba(255,102,0,0.1));
+}
+
+.guild-red-info { flex: 1; min-width: 0; }
+
+.guild-red-name {
+  font-family: 'Orbitron', monospace;
+  font-size: 21px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: #fff;
+}
+
+.guild-red-tag {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: rgba(255,34,34,0.75);
+  margin-top: 4px;
+}
+
+.guild-red-meta-row {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: #d0a3a3;
+}
+
+.guild-red-meta-row span {
+  border: 1px solid var(--guild-border);
+  background: rgba(255,34,34,0.06);
+  padding: 5px 8px;
+}
+
+.guild-red-tabs {
+  display: flex;
+  overflow-x: auto;
+  gap: 4px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--guild-border);
+  padding-bottom: 4px;
+}
+
+.guild-red-tab {
+  flex-shrink: 0;
+  border: 1px solid transparent;
+  border-bottom-color: var(--guild-border);
+  background: transparent;
+  color: #935656;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+
+.guild-red-tab.active {
+  color: var(--guild-red);
+  border-color: var(--guild-border);
+  background: rgba(255,34,34,0.08);
+}
+
+.guild-red-v1 .btn.btn-cyan {
+  color: var(--guild-red);
+  border-color: rgba(255,34,34,0.5);
+}
+
+.guild-red-v1 .btn.btn-purple {
+  color: var(--guild-orange);
+  border-color: rgba(255,102,0,0.5);
+}
+
+.guild-red-v1 .guild-app {
+  position: relative;
+  background: #0a0202;
+  border: 1px solid rgba(255,34,34,0.2);
+  padding: 12px;
+}
+
+.guild-red-v1 .guild-topbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.guild-red-v1 .guild-topbar-left,
+.guild-red-v1 .guild-topbar-right {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.guild-red-v1 .guild-inline-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.guild-red-v1 .guild-inline-form .zbxp-input {
+  min-width: 170px;
+  background: #130505;
+  border-color: rgba(255,34,34,0.22);
+  color: #f0e0e0;
+}
+
+.guild-red-v1 .guild-header {
+  background: #0f0303;
+  border: 1px solid rgba(255,34,34,0.2);
+  margin-bottom: 12px;
+  padding: 14px;
+}
+
+.guild-red-v1 .guild-header-inner {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.guild-red-v1 .guild-emblem {
+  width: 68px;
+  height: 68px;
+  display: grid;
+  place-items: center;
+  font-size: 28px;
+  color: #ff2222;
+  border: 1px solid rgba(255,34,34,0.35);
+  background: linear-gradient(135deg, rgba(255,34,34,0.15), rgba(255,102,0,0.12));
+}
+
+.guild-red-v1 .guild-hdr-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.guild-red-v1 .guild-name {
+  font-family: 'Orbitron', monospace;
+  font-weight: 900;
+  font-size: clamp(20px, 3vw, 30px);
+  letter-spacing: 1px;
+  color: #fff;
+}
+
+.guild-red-v1 .guild-sub {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: rgba(255,34,34,0.75);
+  margin-top: 3px;
+}
+
+.guild-red-v1 .guild-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.guild-red-v1 .guild-meta-row span {
+  border: 1px solid rgba(255,34,34,0.24);
+  background: rgba(255,34,34,0.06);
+  color: #d9b9b9;
+  padding: 5px 8px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+
+.guild-red-v1 .guild-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(255,34,34,0.2);
+}
+
+.guild-red-v1 .guild-tab {
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: transparent;
+  color: #935656;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  padding: 10px 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.guild-red-v1 .guild-tab.active {
+  color: #ff2222;
+  border-color: rgba(255,34,34,0.25);
+  background: rgba(255,34,34,0.09);
+}
+
+.guild-red-v1 .guild-tab-content {
+  display: block;
+  animation: tabSlide 0.2s ease both;
+}
+
+.guild-red-v1 .member-card {
+  width: 100%;
+  border: 1px solid rgba(255,34,34,0.2);
+  border-left: 3px solid #ff2222;
+  background: #120404;
+  color: #f0e0e0;
+  padding: 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  text-align: left;
+}
+
+.guild-red-v1 .member-card.leader {
+  border-left-color: #f59e0b;
+}
+
+.guild-red-v1 .member-left {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.guild-red-v1 .member-rank {
+  min-width: 34px;
+  height: 34px;
+  border: 1px solid rgba(255,34,34,0.35);
+  display: grid;
+  place-items: center;
+  font-family: 'Orbitron', monospace;
+  font-weight: 900;
+}
+
+.guild-red-v1 .member-meta {
+  min-width: 0;
+}
+
+.guild-red-v1 .member-name {
+  font-family: 'Orbitron', monospace;
+  font-size: 16px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.guild-red-v1 .member-title {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: #8d5f5f;
+  letter-spacing: 1px;
+}
+
+.guild-red-v1 .member-right {
+  display: grid;
+  place-items: center;
+}
+
+.guild-red-v1 .member-xp {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #ff6666;
+}
+
+.guild-red-v1 .lb-entry {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(255,34,34,0.2);
+  background: #120404;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+
+.guild-red-v1 .lb-entry.rank-1 { border-left: 3px solid #f59e0b; }
+.guild-red-v1 .lb-entry.rank-2 { border-left: 3px solid #94a3b8; }
+.guild-red-v1 .lb-entry.rank-3 { border-left: 3px solid #cd7f32; }
+
+.guild-red-v1 .lb-pos,
+.guild-red-v1 .lb-xp {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  color: #ff8d8d;
+}
+
+.guild-red-v1 .lb-name {
+  font-family: 'Orbitron', monospace;
+  font-size: 14px;
+  color: #fff;
+}
+
+.guild-red-v1 .guild-directory-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.guild-red-v1 .guild-directory-card {
+  border: 1px solid rgba(255,34,34,0.2);
+  background: #120404;
+  color: #f0e0e0;
+  text-align: left;
+  padding: 10px;
+}
+
+.guild-red-v1 .guild-directory-card.active,
+.guild-red-v1 .guild-directory-card.focus {
+  border-color: rgba(255,34,34,0.6);
+  box-shadow: 0 0 14px rgba(255,34,34,0.18);
+}
+
+.guild-red-v1 .guild-directory-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 14px;
+  color: #fff;
+}
+
+.guild-red-v1 .guild-directory-sub,
+.guild-red-v1 .guild-directory-meta {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: #8d5f5f;
+  margin-top: 4px;
+}
+
+.guild-red-v1 .join-stats-row {
+  display: flex;
+  border: 1px solid rgba(255,34,34,0.2);
+  margin: 10px 0 14px;
+}
+
+.guild-red-v1 .join-stat {
+  flex: 1;
+  border-right: 1px solid rgba(255,34,34,0.2);
+  padding: 8px 6px;
+}
+
+.guild-red-v1 .join-stat:last-child {
+  border-right: none;
+}
+
+.guild-red-v1 .join-stat-val {
+  font-family: 'Orbitron', monospace;
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.guild-red-v1 .join-stat-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  letter-spacing: 2px;
+  color: #8d5f5f;
+}
+
+.guild-red-v1 .guild-xp-bar-wrap {
+  height: 14px;
+  border: 1px solid rgba(255,34,34,0.25);
+  background: rgba(255,34,34,0.07);
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.guild-red-v1 .guild-xp-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #7f1d1d, #ff2222, #ff6600);
+  transition: width 0.5s ease;
+}
+
+.guild-red-v1 .guild-xp-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: #ff8d8d;
+}
+
+.guild-red-v1 .join-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: rgba(0,0,0,0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.guild-red-v1 .join-card {
+  width: min(440px, 92vw);
+  background: #0f0303;
+  border: 1px solid rgba(255,34,34,0.28);
+  padding: 24px;
+  text-align: center;
+}
+
+.guild-red-v1 .join-title {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 4px;
+  color: rgba(255,34,34,0.8);
+}
+
+.guild-red-v1 .join-rank-badge {
+  width: 76px;
+  height: 76px;
+  margin: 12px auto 10px;
+  border: 2px solid #ff2222;
+  display: grid;
+  place-items: center;
+  font-family: 'Orbitron', monospace;
+  font-size: 40px;
+  font-weight: 900;
+}
+
+.guild-red-v1 .join-name {
+  font-family: 'Orbitron', monospace;
+  font-size: 26px;
+  color: #fff;
+}
+
+.guild-red-v1 .join-subtitle {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: #8d5f5f;
+}
+
+.guild-red-v1 .join-welcome {
+  margin-top: 8px;
+  color: #ff6666;
+  font-family: 'Orbitron', monospace;
+  letter-spacing: 1px;
+}
+
+.guild-red-v1 .join-close {
+  margin-top: 14px;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: transparent;
+  color: rgba(255,255,255,0.7);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  padding: 9px 12px;
+}
+
+.guild-red-v1 .boss-arena {
+  border: 1px solid rgba(255,34,34,0.24);
+  background: linear-gradient(180deg, rgba(255,34,34,0.08), rgba(10,2,2,0.7));
+  padding: 12px;
+}
+
+.guild-red-v1 .boss-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.guild-red-v1 .boss-tag {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  color: #8d5f5f;
+}
+
+.guild-red-v1 .boss-name {
+  font-family: 'Orbitron', monospace;
+  font-size: clamp(20px, 4vw, 30px);
+  color: #fff;
+}
+
+.guild-red-v1 .boss-name span {
+  color: #ff2222;
+}
+
+.guild-red-v1 .boss-avatar {
+  width: 64px;
+  height: 64px;
+  border: 1px solid rgba(255,34,34,0.35);
+  display: grid;
+  place-items: center;
+  font-size: 30px;
+  background: rgba(255,34,34,0.1);
+}
+
+.guild-red-v1 .boss-hp-wrap {
+  margin-top: 10px;
+}
+
+.guild-red-v1 .boss-hp-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 5px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+}
+
+.guild-red-v1 .boss-hp-label {
+  color: #8d5f5f;
+}
+
+.guild-red-v1 .boss-hp-val {
+  color: #ff8d8d;
+}
+
+.guild-red-v1 .boss-hp-track {
+  position: relative;
+  overflow: hidden;
+  height: 14px;
+  border: 1px solid rgba(255,34,34,0.25);
+  background: rgba(255,34,34,0.07);
+}
+
+.guild-red-v1 .boss-hp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #7f1d1d, #ff2222);
+  transition: width 0.4s ease;
+}
+
+.guild-red-v1 .boss-hp-segments {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to right,
+    transparent,
+    transparent calc(10% - 1px),
+    rgba(255,255,255,0.06) calc(10% - 1px),
+    rgba(255,255,255,0.06) 10%
+  );
+}
+
+.guild-red-v1 .boss-attack-row {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+.guild-red-v1 .boss-attack-btn {
+  flex: 1;
+  border: 1px solid rgba(255,34,34,0.35);
+  background: rgba(255,34,34,0.08);
+  color: #ffd7d7;
+  font-family: 'Orbitron', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  padding: 10px 8px;
+}
+
+.guild-red-v1 .boss-attack-btn.special {
+  border-color: rgba(245,158,11,0.5);
+  color: #f59e0b;
+}
+
+.guild-red-v1 .boss-contributors {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.guild-red-v1 .boss-contrib-chip {
+  border: 1px solid rgba(255,34,34,0.22);
+  background: rgba(255,34,34,0.06);
+  color: #d9b9b9;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  padding: 6px 8px;
+  display: inline-flex;
+  gap: 8px;
+}
+
+.guild-red-v1 .boss-contrib-chip.top {
+  border-color: rgba(245,158,11,0.4);
+  color: #f59e0b;
+}
+
+.guild-red-v1 .boss-contrib-dmg {
+  color: #ff6666;
+}
+
+.guild-red-v1 .boss-defeated {
+  border: 1px solid rgba(245,158,11,0.35);
+  background: rgba(245,158,11,0.08);
+  padding: 14px;
+}
+
+.guild-red-v1 .boss-defeated.visible {
+  display: block;
+}
+
+.guild-red-v1 .boss-defeated-title {
+  font-family: 'Orbitron', monospace;
+  color: #f59e0b;
+  font-size: 18px;
+}
+
+.guild-red-v1 .boss-defeated-sub {
+  margin-top: 3px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: #d8b982;
+  letter-spacing: 1px;
+}
+
+.guild-red-v1 .boss-loot-row {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.guild-red-v1 .boss-loot {
+  border: 1px solid rgba(245,158,11,0.35);
+  padding: 6px 8px;
+  color: #f59e0b;
+  background: rgba(245,158,11,0.08);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+}
+
+.guild-red-v1 .boss-kill-log {
+  margin-top: 10px;
+}
+
+.guild-red-v1 .boss-log-row {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr auto auto;
+  gap: 10px;
+  border: 1px solid rgba(255,34,34,0.18);
+  background: #120404;
+  color: #c59b9b;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  padding: 8px;
+  margin-top: 6px;
+}
+
+.guild-red-v1 .gq-card {
+  border: 1px solid rgba(255,34,34,0.22);
+  border-left: 3px solid rgba(255,34,34,0.55);
+  background: #120404;
+  padding: 10px;
+  margin-bottom: 10px;
+  position: relative;
+}
+
+.guild-red-v1 .gq-card.active-quest {
+  border-left-color: #ff2222;
+}
+
+.guild-red-v1 .gq-card.completed-quest {
+  border-left-color: #10b981;
+  opacity: 0.75;
+}
+
+.guild-red-v1 .gq-done-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  border: 1px solid rgba(16,185,129,0.45);
+  background: rgba(16,185,129,0.12);
+  color: #10b981;
+  font-size: 9px;
+  font-family: 'Share Tech Mono', monospace;
+  padding: 2px 6px;
+}
+
+.guild-red-v1 .gq-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.guild-red-v1 .gq-name {
+  font-family: 'Orbitron', monospace;
+  color: #fff;
+}
+
+.guild-red-v1 .gq-xp {
+  color: #ff8d8d;
+  font-family: 'Share Tech Mono', monospace;
+}
+
+.guild-red-v1 .gq-desc {
+  margin-top: 4px;
+  color: #9a7070;
+  font-size: 13px;
+}
+
+.guild-red-v1 .gq-progress-wrap {
+  margin-top: 8px;
+}
+
+.guild-red-v1 .gq-progress-header {
+  display: flex;
+  justify-content: space-between;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: #8d5f5f;
+}
+
+.guild-red-v1 .gq-track {
+  margin-top: 4px;
+  height: 10px;
+  border: 1px solid rgba(255,34,34,0.25);
+  background: rgba(255,34,34,0.07);
+}
+
+.guild-red-v1 .gq-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #7f1d1d, #ff2222);
+}
+
+.guild-red-v1 .gq-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.guild-red-v1 .gq-btn {
+  border: 1px solid rgba(255,34,34,0.35);
+  background: rgba(255,34,34,0.08);
+  color: #ffd7d7;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  padding: 7px 10px;
+}
+
+.guild-red-v1 .gq-btn.complete {
+  border-color: rgba(16,185,129,0.45);
+  color: #10b981;
+}
+
+.guild-red-v1 .feed-entry {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  border-bottom: 1px solid rgba(255,34,34,0.12);
+  padding: 10px 0;
+}
+
+.guild-red-v1 .feed-icon {
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(255,34,34,0.25);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.guild-red-v1 .feed-body {
+  flex: 1;
+}
+
+.guild-red-v1 .feed-text {
+  color: #f0e0e0;
+}
+
+.guild-red-v1 .feed-time {
+  margin-top: 3px;
+  color: #8d5f5f;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+}
+
+.guild-red-v1 .feed-xp-badge {
+  border: 1px solid rgba(16,185,129,0.45);
+  color: #10b981;
+  padding: 2px 6px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+}
+
+.guild-red-v1 .feed-chat-wrap {
+  margin-top: 10px;
+}
+
+.guild-red-v1 .feed-chat-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.guild-red-v1 .feed-chat-input {
+  flex: 1;
+  border: 1px solid rgba(255,34,34,0.24);
+  background: #130505;
+  color: #fff;
+  padding: 10px;
+}
+
+.guild-red-v1 .feed-chat-send {
+  border: 1px solid rgba(255,34,34,0.4);
+  background: rgba(255,34,34,0.1);
+  color: #ff6666;
+  font-family: 'Orbitron', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  padding: 10px 12px;
+}
+
+@keyframes tabSlide {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* MOBILE LAUNCH READINESS */
 @media (max-width: 760px) {
+  .guild-red-v1 .guild-topbar {
+    flex-direction: column;
+  }
+
+  .guild-red-v1 .guild-inline-form {
+    width: 100%;
+  }
+
+  .guild-red-v1 .guild-inline-form .zbxp-input {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .guild-red-v1 .guild-directory-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .guild-red-v1 .guild-header-inner {
+    flex-direction: column;
+  }
+
+  .guild-red-v1 .boss-log-row {
+    grid-template-columns: 1fr;
+  }
+
   .guild-s1-wrap .actions .btn,
   .leaderboard-s1-wrap .actions .btn,
   .gym-s1-wrap .gym-v4-day-tab,
@@ -1794,6 +2668,30 @@ body::after {
 
   .gym-s1-wrap .gym-v4-exercise-sets {
     font-size: 15px;
+  }
+
+  .time-slot {
+    min-height: 74px;
+  }
+
+  .time-slot-time {
+    width: 86px;
+    font-size: 16px;
+    padding: 16px 10px;
+  }
+
+  .time-slot-title {
+    font-size: 19px;
+  }
+
+  .time-slot-sub {
+    font-size: 13px;
+  }
+
+  .planner-time-input {
+    max-width: 100%;
+    min-width: 170px !important;
+    font-size: 17px;
   }
 }
 

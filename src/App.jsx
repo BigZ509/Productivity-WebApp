@@ -47,6 +47,93 @@ function getProfileXp(profile) {
   return Number(profile?.total_xp ?? profile?.xp_total ?? 0)
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function hasEmailLikeValue(value) {
+  return String(value || '').includes('@')
+}
+
+function safeDisplayName(rowLike, fallbackSeed = '') {
+  const raw = String(
+    rowLike?.display_name || rowLike?.username || rowLike?.name || rowLike?.handle || '',
+  ).trim()
+  if (raw && !hasEmailLikeValue(raw)) return raw
+  const seed = String(rowLike?.user_id || rowLike?.id || fallbackSeed || '').replace(/-/g, '').slice(-4) || '0000'
+  return `Hunter#${seed}`
+}
+
+async function incrementProfileXp(userId, deltaXp) {
+  const delta = Number(deltaXp || 0)
+  if (!userId || delta <= 0) {
+    return { data: null, error: null }
+  }
+
+  let selectRes = await supabase
+    .from('profiles')
+    .select('id, total_xp, xp_total')
+    .eq('id', userId)
+    .single()
+
+  if (selectRes.error && String(selectRes.error.message || '').toLowerCase().includes('total_xp')) {
+    selectRes = await supabase
+      .from('profiles')
+      .select('id, xp_total')
+      .eq('id', userId)
+      .single()
+  }
+  if (selectRes.error) return { data: null, error: selectRes.error }
+
+  const current = Number(selectRes.data?.total_xp ?? selectRes.data?.xp_total ?? 0)
+  const next = current + delta
+
+  let updateRes = await supabase
+    .from('profiles')
+    .update({ total_xp: next })
+    .eq('id', userId)
+    .select('id, total_xp, xp_total')
+    .single()
+
+  if (updateRes.error && String(updateRes.error.message || '').toLowerCase().includes('total_xp')) {
+    updateRes = await supabase
+      .from('profiles')
+      .update({ xp_total: next })
+      .eq('id', userId)
+      .select('id, total_xp, xp_total')
+      .single()
+  }
+
+  return { data: updateRes.data || null, error: updateRes.error || null }
+}
+
+async function hydrateRowsWithProfileNames(rows) {
+  const list = Array.isArray(rows) ? rows : []
+  const ids = [...new Set(list.map((row) => row?.user_id).filter(Boolean))]
+  if (ids.length === 0) return list
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, username, display_name')
+    .in('id', ids)
+
+  if (error || !data) return list
+  const byId = new Map(data.map((row) => [row.id, row]))
+  return list.map((row) => {
+    const profileRow = byId.get(row.user_id)
+    const resolvedName =
+      profileRow?.display_name ||
+      profileRow?.username ||
+      row?.display_name ||
+      row?.username
+    return {
+      ...row,
+      username: resolvedName || row?.username || null,
+      display_name: profileRow?.display_name || row?.display_name || null,
+    }
+  })
+}
+
 function isInvalidCredentialError(error) {
   const message = String(error?.message || '').toLowerCase()
   return message.includes('invalid login credentials') || message.includes('invalid credentials')
@@ -70,6 +157,42 @@ function isAuthLockTimeoutError(error) {
   )
 }
 
+function hasAuthCallbackParams() {
+  if (typeof window === 'undefined') return false
+  const url = new URL(window.location.href)
+  if (url.pathname === '/auth/callback') return true
+  const hash = new URLSearchParams((url.hash || '').replace(/^#/, ''))
+  const hasHashAuth =
+    hash.has('access_token') ||
+    hash.has('refresh_token') ||
+    hash.has('error') ||
+    hash.has('error_description') ||
+    hash.get('type') === 'signup'
+  const hasQueryAuth = url.searchParams.has('code') || url.searchParams.has('error_description')
+  return hasHashAuth || hasQueryAuth
+}
+
+async function tryAcquireBootLock() {
+  if (typeof navigator === 'undefined' || !navigator?.locks?.request) {
+    return { acquired: true, reason: 'unsupported' }
+  }
+  let acquired = false
+  try {
+    await navigator.locks.request(
+      'lock:zbxp-auth-bootstrap',
+      { mode: 'exclusive', ifAvailable: true },
+      async (lock) => {
+        acquired = Boolean(lock)
+        return acquired
+      },
+    )
+    return { acquired, reason: acquired ? 'acquired' : 'busy' }
+  } catch (error) {
+    console.warn('[bootstrap.lock] non-fatal lock check failed', String(error?.message || error))
+    return { acquired: true, reason: 'error' }
+  }
+}
+
 function withTimeout(promise, timeoutMs, message) {
   let timeoutId
   const timeoutPromise = new Promise((_, reject) => {
@@ -81,7 +204,7 @@ function withTimeout(promise, timeoutMs, message) {
 }
 
 async function ensureProfile(user) {
-  const safeUsername = (user.email?.split('@')[0] || `player_${user.id.slice(0, 6)}`).slice(0, 24)
+  const safeUsername = `Hunter#${String(user.id || '').replace(/-/g, '').slice(-4) || '0000'}`
 
   const seedPayload = {
     id: user.id,
@@ -99,6 +222,12 @@ async function ensureProfile(user) {
     .upsert(seedPayload, { onConflict: 'id', ignoreDuplicates: true })
 
   if (insertRes.error) {
+    console.warn('[bootstrap.profile] seed upsert failed', {
+      code: insertRes.error.code,
+      message: insertRes.error.message,
+      details: insertRes.error.details,
+      hint: insertRes.error.hint,
+    })
     const msg = String(insertRes.error.message || '').toLowerCase()
     const missingOptionalColumn =
       msg.includes('column') &&
@@ -138,6 +267,12 @@ async function ensureProfile(user) {
     if (!profileResponse.error) {
       return profileResponse.data
     }
+    console.warn('[bootstrap.profile] select candidate failed', {
+      fields,
+      status: profileResponse.status,
+      code: profileResponse.error.code,
+      message: profileResponse.error.message,
+    })
     lastError = profileResponse.error
   }
 
@@ -165,15 +300,26 @@ function PathSelectScreen({ profile, onSaved }) {
     }
 
     setIsSaving(true)
-    const { error: updateError } = await supabase
+    let updateRes = await supabase
       .from('profiles')
-      .update({ username: username.trim(), path: pathKey })
+      .update({ username: username.trim(), display_name: username.trim(), path: pathKey })
       .eq('id', profile.id)
+
+    if (updateRes.error) {
+      const msg = String(updateRes.error.message || '').toLowerCase()
+      const missingDisplayName = msg.includes('display_name') && msg.includes('does not exist')
+      if (missingDisplayName) {
+        updateRes = await supabase
+          .from('profiles')
+          .update({ username: username.trim(), path: pathKey })
+          .eq('id', profile.id)
+      }
+    }
 
     setIsSaving(false)
 
-    if (updateError) {
-      setError(updateError.message)
+    if (updateRes.error) {
+      setError(updateRes.error.message)
       return
     }
 
@@ -583,6 +729,11 @@ function AuthCallbackPage() {
 
       try {
         const url = new URL(window.location.href)
+        const hashParams = new URLSearchParams((url.hash || '').replace(/^#/, ''))
+        const hashError = hashParams.get('error_description') || hashParams.get('error')
+        if (hashError) {
+          throw new Error(hashError)
+        }
         const code = url.searchParams.get('code')
         if (code) {
           const exchange = await supabase.auth.exchangeCodeForSession(code)
@@ -596,8 +747,13 @@ function AuthCallbackPage() {
 
         if (!cancelled) {
           const ok = Boolean(sessionRes.data.session)
+          const tokenInHash = hashParams.has('access_token')
           setHasSession(ok)
-          setStatus(ok ? 'Email verified. You are ready.' : 'Verification complete. Please login to continue.')
+          setStatus(
+            ok || tokenInHash
+              ? 'Email verified. You are ready.'
+              : 'Verification complete. Please login to continue.',
+          )
         }
       } catch (err) {
         if (!cancelled) {
@@ -730,14 +886,65 @@ function ProfileHUD({ profile, weeklyXP, statPulse }) {
   )
 }
 
-function DashboardPage() {
+function DashboardPage({ onProfileRefresh, onXpGain }) {
   const { pathConfig, profile } = useApp()
-  const [dailyClaimed, setDailyClaimed] = useState(false)
+  const claimKey = `zbxp.daily.claim.${profile?.id || 'anon'}.${todayIso()}`
+  const [dailyClaimed, setDailyClaimed] = useState(() => {
+    try {
+      return typeof window !== 'undefined' && window.localStorage.getItem(claimKey) === '1'
+    } catch {
+      return false
+    }
+  })
+  const [dailyClaiming, setDailyClaiming] = useState(false)
+  const [dailyError, setDailyError] = useState('')
   const totalXP = getProfileXp(profile)
   const level = levelFromXp(totalXP)
   const rank = getRankInfo(totalXP).rank
   const scrollToSection = (id) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  const onClaimDailyXp = async () => {
+    if (dailyClaimed || dailyClaiming) return
+    setDailyError('')
+    setDailyClaiming(true)
+
+    const nextTotal = totalXP + 10
+    let updateRes = await supabase
+      .from('profiles')
+      .update({ total_xp: nextTotal })
+      .eq('id', profile.id)
+      .select('id, total_xp, xp_total')
+      .single()
+
+    if (updateRes.error && String(updateRes.error.message || '').toLowerCase().includes('total_xp')) {
+      updateRes = await supabase
+        .from('profiles')
+        .update({ xp_total: nextTotal })
+        .eq('id', profile.id)
+        .select('id, total_xp, xp_total')
+        .single()
+    }
+
+    if (updateRes.error) {
+      setDailyError(`Daily claim failed: ${updateRes.error.message}`)
+      setDailyClaiming(false)
+      return
+    }
+
+    try {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(claimKey, '1')
+      }
+    } catch {
+      // ignore localStorage write issues
+    }
+
+    setDailyClaimed(true)
+    onXpGain(10)
+    await onProfileRefresh()
+    setDailyClaiming(false)
   }
 
   return (
@@ -765,10 +972,11 @@ function DashboardPage() {
             Streak bonus: <span>+10 XP</span> - claim before midnight
           </div>
         </div>
-        <button type="button" className="btn btn-green" disabled={dailyClaimed} onClick={() => setDailyClaimed(true)}>
-          {dailyClaimed ? 'CLAIMED' : 'CLAIM +10 XP'}
+        <button type="button" className="btn btn-green" disabled={dailyClaimed || dailyClaiming} onClick={onClaimDailyXp}>
+          {dailyClaimed ? 'CLAIMED' : dailyClaiming ? 'CLAIMING...' : 'CLAIM +10 XP'}
         </button>
       </div>
+      {dailyError ? <p className="error-text">{dailyError}</p> : null}
 
       <div className="system-alert">
         <div className="system-alert-text">
@@ -807,7 +1015,7 @@ function DashboardPage() {
 
       <div id="active-missions" className="panel">
         <div className="panel-title">Active Missions</div>
-        <div className="panel-sub">// your current active quests - max 3</div>
+        <div className="panel-sub">// your current active quests - live from quest system</div>
         <div className="quest-list">
           <article className="quest-item q-study">
             <div className="quest-icon">📖</div>
@@ -892,6 +1100,7 @@ function DashboardPage() {
 }
 
 function QuestsPage({ onProfileRefresh, onXpGain }) {
+  const ACTIVE_QUEST_UI_LIMIT = 10
   const { profile, pathConfig } = useApp()
   const [availableQuests, setAvailableQuests] = useState([])
   const [activeQuests, setActiveQuests] = useState([])
@@ -943,7 +1152,6 @@ function QuestsPage({ onProfileRefresh, onXpGain }) {
       .from('user_active_quests')
       .select('id, selected_at, status, quest:quests(*)')
       .eq('user_id', profile.id)
-      .eq('status', 'active')
       .order('selected_at', { ascending: false })
 
     if (activeRes.error) {
@@ -968,7 +1176,11 @@ function QuestsPage({ onProfileRefresh, onXpGain }) {
     }
 
     setAvailableQuests(availableRes.data || [])
-    setActiveQuests(activeRes.data || [])
+    const normalizedActive = (activeRes.data || []).filter((row) => {
+      const status = String(row?.status || '').toLowerCase()
+      return !['completed', 'done', 'archived', 'inactive'].includes(status)
+    })
+    setActiveQuests(normalizedActive)
     const normalizedHistory = (historyRes.data || []).map((row) => {
       const activeQuest = Array.isArray(row.user_active_quests) ? row.user_active_quests[0] : row.user_active_quests
       const quest = Array.isArray(activeQuest?.quests) ? activeQuest.quests[0] : activeQuest?.quests
@@ -992,9 +1204,61 @@ function QuestsPage({ onProfileRefresh, onXpGain }) {
   const onSelectQuest = async (questId) => {
     setError('')
     setQuestMessage('')
-    const { error: rpcError } = await supabase.rpc('select_quest', { p_quest_id: questId })
-    if (rpcError) {
-      setError(rpcError.message)
+    let rpcRes = await supabase.rpc('select_quest', { p_quest_id: questId })
+    if (rpcRes.error) {
+      const msg = String(rpcRes.error.message || '').toLowerCase()
+      const duplicateFromRpc = msg.includes('duplicate key value')
+      if (duplicateFromRpc) {
+        setSelectedQuestId(questId)
+        setQuestMessage('Quest is already active.')
+        loadQuestData()
+        return
+      }
+      const capBlocked = msg.includes('active quest limit') || msg.includes('max 3')
+      if (capBlocked && activeQuests.length < ACTIVE_QUEST_UI_LIMIT) {
+        let insertRes = await supabase
+          .from('user_active_quests')
+          .insert({
+            user_id: profile.id,
+            quest_id: questId,
+            status: 'active',
+            selected_at: new Date().toISOString(),
+          })
+          .select('id')
+          .maybeSingle()
+
+        if (insertRes.error) {
+          const insertMsg = String(insertRes.error.message || '').toLowerCase()
+          const missingCols =
+            (insertMsg.includes('selected_at') && insertMsg.includes('does not exist')) ||
+            (insertMsg.includes('status') && insertMsg.includes('does not exist'))
+          if (missingCols) {
+            insertRes = await supabase
+              .from('user_active_quests')
+              .insert({ user_id: profile.id, quest_id: questId })
+              .select('id')
+              .maybeSingle()
+          }
+        }
+
+        if (insertRes.error) {
+          const duplicateActiveQuest = String(insertRes.error.message || '').toLowerCase().includes('duplicate key value')
+          if (duplicateActiveQuest) {
+            setSelectedQuestId(questId)
+            setQuestMessage('Quest is already active.')
+            loadQuestData()
+            return
+          }
+          setError(`Quest select failed: ${insertRes.error.message}`)
+          return
+        }
+        setSelectedQuestId(questId)
+        setQuestMessage('Quest accepted via fallback path.')
+        loadQuestData()
+        return
+      }
+
+      setError(rpcRes.error.message)
       return
     }
     setSelectedQuestId(questId)
@@ -1013,16 +1277,26 @@ function QuestsPage({ onProfileRefresh, onXpGain }) {
       return
     }
 
-    const { data, error: rpcError } = await supabase.rpc('complete_quest', {
-      p_quest_id: questId,
-    })
-
-    if (rpcError) {
-      setError(rpcError.message)
+    const beforeXp = Number(profile?.total_xp ?? profile?.xp_total ?? 0)
+    let rpcResponse = await supabase.rpc('complete_quest', { p_quest_id: questId })
+    if (rpcResponse.error) {
+      const message = String(rpcResponse.error.message || '').toLowerCase()
+      const missingQuestIdSig =
+        message.includes('function public.complete_quest') &&
+        message.includes('p_quest_id')
+      if (missingQuestIdSig) {
+        rpcResponse = await supabase.rpc('complete_quest', {
+          p_active_quest_id: activeQuestId,
+          p_optional_note: noteDrafts[activeQuestId] || null,
+        })
+      }
+    }
+    if (rpcResponse.error) {
+      setError(`Quest completion failed: ${rpcResponse.error.message}`)
       return
     }
 
-    const result = Array.isArray(data) ? data[0] : data
+    const result = Array.isArray(rpcResponse.data) ? rpcResponse.data[0] : rpcResponse.data
     if (import.meta.env.DEV) {
       // Dev instrumentation for XP persistence tracking.
       console.debug('[quest.complete] rpc result', { activeQuestId, questId, result })
@@ -1034,9 +1308,25 @@ function QuestsPage({ onProfileRefresh, onXpGain }) {
 
     setSelectedActiveId(activeQuestId)
     setQuestMessage('Quest completion logged.')
-    await onProfileRefresh()
+    let refreshedProfile = await onProfileRefresh()
+    if (!refreshedProfile) {
+      setError('Quest completed, but profile refresh failed. Tap Retry Profile Load above.')
+      return
+    }
+    const afterXp = Number(refreshedProfile?.total_xp ?? refreshedProfile?.xp_total ?? 0)
+    if (awardedXp > 0 && afterXp <= beforeXp) {
+      const persistRes = await incrementProfileXp(profile.id, awardedXp)
+      if (persistRes.error) {
+        setError(`Quest completed but XP persist failed: ${persistRes.error.message}`)
+        return
+      }
+      refreshedProfile = await onProfileRefresh()
+      setQuestMessage(`Quest completion logged. +${awardedXp} XP persisted.`)
+    }
     if (import.meta.env.DEV) {
-      console.debug('[quest.complete] profile refresh requested')
+      console.debug('[quest.complete] profile refresh result', {
+        after_total_xp: Number(refreshedProfile?.total_xp ?? refreshedProfile?.xp_total ?? 0),
+      })
     }
     loadQuestData()
   }
@@ -1087,7 +1377,7 @@ function QuestsPage({ onProfileRefresh, onXpGain }) {
               <div key={category}>
                 {groupedAvailable[category]?.length ? <div className="section-label">{category.toUpperCase()}</div> : null}
                 {groupedAvailable[category]?.map((quest) => {
-                  const disabled = activeQuestIds.has(quest.id) || activeQuests.length >= 3
+                  const disabled = activeQuestIds.has(quest.id) || activeQuests.length >= ACTIVE_QUEST_UI_LIMIT
                   return (
                     <article
                       key={quest.id}
@@ -1119,7 +1409,7 @@ function QuestsPage({ onProfileRefresh, onXpGain }) {
 
       <div className="panel">
         <div className="panel-title">Active Missions</div>
-        <div className="panel-sub">// your current active quests - max 3 at a time</div>
+        <div className="panel-sub">// your current active quests - max {ACTIVE_QUEST_UI_LIMIT} at a time</div>
         {activeQuests.length === 0 ? <p className="muted">No active quests yet.</p> : null}
         <div className="quest-list">
           {activeQuests.map((entry) => (
@@ -1337,14 +1627,50 @@ function GuildPage() {
   const [allGroups, setAllGroups] = useState([])
   const [memberCounts, setMemberCounts] = useState({})
   const [guildPreviewBoard, setGuildPreviewBoard] = useState([])
+  const [communityMembers, setCommunityMembers] = useState([])
   const [selectedGroupId, setSelectedGroupId] = useState('')
   const [challengeTitle, setChallengeTitle] = useState('Weekly Raid: 200 total completions')
   const [newGroupName, setNewGroupName] = useState('')
   const [joinCode, setJoinCode] = useState('')
   const [selectedGuildName, setSelectedGuildName] = useState('')
+  const [guildTab, setGuildTab] = useState('members')
+  const [directoryJoinTarget, setDirectoryJoinTarget] = useState(null)
+  const [showJoinOverlay, setShowJoinOverlay] = useState(false)
+  const [joinOverlayName, setJoinOverlayName] = useState('')
+  const [joinOverlayRank, setJoinOverlayRank] = useState('E')
+  const [guildXp, setGuildXp] = useState(6800)
+  const [guildXpToNext, setGuildXpToNext] = useState(10000)
+  const [guildLevel, setGuildLevel] = useState(11)
+  const [bossHp, setBossHp] = useState(8400)
+  const [bossDefeated, setBossDefeated] = useState(false)
+  const [bossKillLog, setBossKillLog] = useState([
+    { id: 1, name: 'Shadow Monarch', tier: 'III', mvp: 'IRONWILL', when: '2D AGO', reward: '+500 XP' },
+  ])
+  const [guildQuests, setGuildQuests] = useState([
+    { id: 1, name: 'Collective Iron Will', desc: 'Guild members complete 25 workout sessions this week.', xp: 500, total: 25, current: 18, done: false },
+    { id: 2, name: 'Thousand Reps Challenge', desc: 'Log 1000 total reps across all members.', xp: 300, total: 1000, current: 740, done: false },
+    { id: 3, name: 'No Days Off Week', desc: 'Every member logs at least one session each day.', xp: 800, total: 7, current: 4, done: false },
+  ])
+  const [feedEntries, setFeedEntries] = useState([
+    { id: 1, icon: '⚡', text: 'Guild systems online. Start contributing.', xp: '+0 XP', time: 'NOW' },
+  ])
+  const [chatDraft, setChatDraft] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const toXpValue = (row) => Number(row?.xp_total ?? row?.total_xp ?? row?.xp ?? 0)
+  const normalizeProfileStats = (pr, fallbackId) => ({
+    id: pr?.id || fallbackId,
+    username: safeDisplayName(
+      {
+        user_id: pr?.id || fallbackId,
+        username: pr?.username,
+        display_name: pr?.display_name,
+      },
+      fallbackId,
+    ),
+    xp: Number(pr?.xp ?? pr?.total_xp ?? pr?.xp_total ?? 0),
+    streak: Number(pr?.current_streak ?? 0),
+  })
 
   const loadGroups = async () => {
     setError('')
@@ -1368,7 +1694,7 @@ function GuildPage() {
   const loadAllGroups = async () => {
     let allGroupsRes = await supabase
       .from('groups')
-      .select('id, name, created_by, capacity, created_at')
+      .select('id, name, created_by, invite_code, capacity, created_at')
       .order('name', { ascending: true })
 
     if (allGroupsRes.error) {
@@ -1376,7 +1702,7 @@ function GuildPage() {
       if (msg.includes('column') && msg.includes('capacity')) {
         allGroupsRes = await supabase
           .from('groups')
-          .select('id, name, created_by, created_at')
+          .select('id, name, created_by, invite_code, created_at')
           .order('name', { ascending: true })
       }
     }
@@ -1471,6 +1797,112 @@ function GuildPage() {
     setGuildPreviewBoard(normalized)
   }
 
+  const loadCommunityMembers = async (groupId) => {
+    if (!groupId) {
+      setCommunityMembers([])
+      return
+    }
+
+    const memberRes = await supabase
+      .from('group_members')
+      .select('user_id, role')
+      .eq('group_id', groupId)
+      .limit(50)
+
+    if (memberRes.error) {
+      setError((prev) => prev || memberRes.error.message)
+      setCommunityMembers([])
+      return
+    }
+
+    const ids = [...new Set((memberRes.data || []).map((row) => row.user_id).filter(Boolean))]
+    if (ids.length === 0) {
+      setCommunityMembers([])
+      return
+    }
+
+    const profileCandidates = [
+      'id, username, display_name, xp, current_streak',
+      'id, username, display_name, total_xp, current_streak',
+      'id, username, display_name, xp_total, current_streak',
+      'id, username, display_name, xp',
+      'id, username, display_name',
+    ]
+    let profileRes = null
+    for (const fields of profileCandidates) {
+      const res = await supabase
+        .from('profiles')
+        .select(fields)
+        .in('id', ids)
+      if (!res.error) {
+        profileRes = res
+        break
+      }
+    }
+
+    if (!profileRes || profileRes.error) {
+      setError((prev) => prev || profileRes?.error?.message || 'Unable to load community profiles.')
+      setCommunityMembers([])
+      return
+    }
+
+    const byId = new Map((profileRes.data || []).map((row) => [row.id, row]))
+    const merged = (memberRes.data || []).map((row) => {
+      const pr = byId.get(row.user_id)
+      const normalized = normalizeProfileStats(pr, row.user_id)
+      return {
+        user_id: row.user_id,
+        role: row.role || 'member',
+        xp: normalized.xp,
+        streak: normalized.streak,
+        username: normalized.username,
+      }
+    })
+    setCommunityMembers(merged)
+  }
+
+  const selectGuildContext = (groupId, guildName) => {
+    setSelectedGroupId(groupId)
+    setSelectedGuildName(guildName)
+    setGuildTab('members')
+  }
+
+  const refreshGuildCommunity = async (groupId) => {
+    await loadGroups()
+    await loadAllGroups()
+    await loadMemberCounts()
+    await loadCommunityMembers(groupId)
+    await loadGuildPreviewBoard(groupId)
+  }
+
+  const joinGuildById = async (groupId) => {
+    const authRes = await supabase.auth.getUser()
+    const userId = authRes?.data?.user?.id || profile?.id
+    if (!userId) {
+      throw new Error('Not signed in')
+    }
+
+    let insertRes = await supabase
+      .from('group_members')
+      .insert({ group_id: groupId, user_id: userId, role: 'member' }, { returning: 'minimal' })
+
+    if (insertRes.error) {
+      const msg = String(insertRes.error.message || '').toLowerCase()
+      const missingRole = msg.includes('role') && msg.includes('does not exist')
+      if (missingRole) {
+        insertRes = await supabase
+          .from('group_members')
+          .insert({ group_id: groupId, user_id: userId }, { returning: 'minimal' })
+      }
+    }
+
+    if (insertRes.error && !String(insertRes.error.message || '').toLowerCase().includes('duplicate')) {
+      throw insertRes.error
+    }
+
+    return groupId
+  }
+
   useEffect(() => {
     loadGroups()
     loadAllGroups()
@@ -1480,6 +1912,7 @@ function GuildPage() {
 
   useEffect(() => {
     loadGuildPreviewBoard(selectedGroupId)
+    loadCommunityMembers(selectedGroupId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedGroupId])
 
@@ -1503,16 +1936,144 @@ function GuildPage() {
     event.preventDefault()
     setError('')
     setMessage('')
-    if (!joinCode.trim()) return
+    const code = joinCode.trim().toUpperCase()
+    if (!code) return
 
-    const joinRes = await supabase.rpc('join_guild_by_code', { p_code: joinCode.trim().toUpperCase() })
+    const joinRes = await supabase.rpc('join_guild_by_code', { p_code: code })
     if (joinRes.error) {
       setError(joinRes.error.message)
       return
     }
     setMessage('Joined guild.')
     setJoinCode('')
-    loadGroups()
+    setDirectoryJoinTarget(null)
+    await loadGroups()
+    await loadAllGroups()
+    const directGroup = await supabase
+      .from('groups')
+      .select('id, name')
+      .eq('invite_code', code)
+      .maybeSingle()
+    const selected =
+      directGroup.data ||
+      allGroups.find((entry) => String(entry.invite_code || '').toUpperCase() === code) ||
+      groups.find((entry) => String(entry.invite_code || '').toUpperCase() === code)
+    if (selected?.id) {
+      selectGuildContext(selected.id, selected.name)
+      setJoinOverlayName(selected.name)
+      setJoinOverlayRank('E')
+      setShowJoinOverlay(true)
+      await refreshGuildCommunity(selected.id)
+    }
+  }
+
+  const addGuildFeed = (icon, text, xp = '') => {
+    setFeedEntries((prev) => [{ id: Date.now() + Math.random(), icon, text, xp, time: 'JUST NOW' }, ...prev].slice(0, 40))
+  }
+
+  const addGuildXp = (amount) => {
+    const inc = Number(amount || 0)
+    if (inc <= 0) return
+    setGuildXp((prev) => {
+      let next = prev + inc
+      let nextLevel = guildLevel
+      let nextCap = guildXpToNext
+      while (next >= nextCap) {
+        next -= nextCap
+        nextLevel += 1
+        nextCap = Math.round(nextCap * 1.4)
+      }
+      setGuildLevel(nextLevel)
+      setGuildXpToNext(nextCap)
+      return next
+    })
+  }
+
+  const respawnBoss = () => {
+    setBossHp(10000)
+    setBossDefeated(false)
+    addGuildFeed('💀', 'New raid boss has appeared. Rally the guild.', '')
+    setMessage('A new boss has spawned.')
+  }
+
+  const attackBoss = (damage, ultimate = false) => {
+    if (bossDefeated || bossHp <= 0) {
+      setMessage('Boss already defeated. Respawn to continue raid.')
+      return
+    }
+    const crit = Math.random() < (ultimate ? 0.5 : 0.15)
+    const final = crit ? Math.round(damage * 2.5) : damage
+    const nextHp = Math.max(0, bossHp - final)
+    setBossHp(nextHp)
+    addGuildXp(Math.round(final / 10))
+    addGuildFeed('⚔️', `${safeDisplayName(profile, profile.id)} dealt ${final} damage to guild boss${crit ? ' (CRIT)' : ''}.`, `+${Math.round(final / 10)} XP`)
+
+    if (nextHp <= 0) {
+      setBossDefeated(true)
+      addGuildXp(150)
+      addGuildFeed('🏆', 'Guild defeated SHADOW MONARCH.', '+500 XP')
+      setBossKillLog((prev) => ([
+        {
+          id: Date.now(),
+          name: 'Shadow Monarch',
+          tier: 'III',
+          mvp: safeDisplayName(profile, profile.id),
+          when: 'JUST NOW',
+          reward: '+500 XP',
+        },
+        ...prev,
+      ]).slice(0, 8))
+      setMessage('Boss defeated. Claim loot and respawn when ready.')
+    }
+  }
+
+  const contributeGuildQuest = (questId) => {
+    const contribution = Math.floor(Math.random() * 3) + 1
+    setGuildQuests((prev) =>
+      prev.map((quest) => (quest.id === questId ? { ...quest, current: Math.min(quest.total, quest.current + contribution) } : quest)),
+    )
+    addGuildXp(10)
+    addGuildFeed('📜', `${profile.username || 'You'} contributed to a guild quest.`, '+10 XP')
+  }
+
+  const completeGuildQuest = (questId) => {
+    const quest = guildQuests.find((item) => item.id === questId)
+    if (!quest || quest.done || quest.current < quest.total) return
+    setGuildQuests((prev) => prev.map((item) => (item.id === questId ? { ...item, done: true } : item)))
+    addGuildXp(quest.xp)
+    addGuildFeed('🏆', `Guild quest "${quest.name}" completed.`, `+${quest.xp} XP`)
+  }
+
+  const sendGuildChat = () => {
+    const msg = chatDraft.trim()
+    if (!msg) return
+    addGuildFeed('💬', `${profile.username || 'You'}: ${msg}`)
+    setChatDraft('')
+  }
+
+  const openJoinFromDirectory = async (group) => {
+    const isMember = groups.some((entry) => entry.id === group.id)
+    if (isMember) {
+      selectGuildContext(group.id, group.name)
+      await refreshGuildCommunity(group.id)
+      return
+    }
+
+    setError('')
+    setMessage('')
+    try {
+      await joinGuildById(group.id)
+    } catch (joinError) {
+      setError(String(joinError?.message || joinError))
+      return
+    }
+
+    selectGuildContext(group.id, group.name)
+    setJoinOverlayName(group.name)
+    setJoinOverlayRank('E')
+    setShowJoinOverlay(true)
+    setMessage(`Joined ${group.name}.`)
+    await refreshGuildCommunity(group.id)
   }
 
   const onCreateChallenge = async () => {
@@ -1542,137 +2103,302 @@ function GuildPage() {
     setMessage('Raid challenge created.')
   }
 
+  const selectedGuild = allGroups.find((group) => group.id === selectedGroupId) || groups.find((group) => group.id === selectedGroupId)
+  const selectedMembers = Number(memberCounts[selectedGroupId] || 0)
+  const selectedCapacity = Number(selectedGuild?.capacity || 10)
+  const selectedOpenSpots = Math.max(0, selectedCapacity - selectedMembers)
+  const viewerName = safeDisplayName(profile, profile?.id)
+  const selectedGuildTitle = selectedGuildName || selectedGuild?.name || 'IRON WOLVES'
+  const bossContributors = [...communityMembers]
+    .sort((a, b) => Number(b.xp || 0) - Number(a.xp || 0))
+    .slice(0, 5)
+
   return (
-    <section className="tab-content active">
+    <section className="tab-content active guild-red-v1">
+      {showJoinOverlay ? (
+        <div className="join-overlay active" onClick={() => setShowJoinOverlay(false)}>
+          <div className="join-card" onClick={(event) => event.stopPropagation()}>
+            <div className="join-title">// NEW HUNTER JOINS THE GUILD</div>
+            <div className="join-rank-badge">{joinOverlayRank}</div>
+            <div className="join-name">{viewerName}</div>
+            <div className="join-subtitle">{joinOverlayName.toUpperCase()} • NEW ARRIVAL</div>
+            <div className="join-stats-row">
+              <div className="join-stat"><div className="join-stat-val">{levelFromXp(getProfileXp(profile))}</div><div className="join-stat-label">LEVEL</div></div>
+              <div className="join-stat"><div className="join-stat-val">{getProfileXp(profile)}</div><div className="join-stat-label">XP</div></div>
+              <div className="join-stat"><div className="join-stat-val">{Number(profile?.current_streak ?? 0)}</div><div className="join-stat-label">STREAK</div></div>
+            </div>
+            <div className="join-welcome">⚔ WELCOME TO THE GUILD COMMUNITY</div>
+            <button type="button" className="join-close" onClick={() => setShowJoinOverlay(false)}>ACKNOWLEDGE</button>
+          </div>
+        </div>
+      ) : null}
+
       {error ? <p className="error-text">{error}</p> : null}
       {message ? <p className="muted">{message}</p> : null}
 
-      <form className="panel form-stack" onSubmit={onCreateGuild}>
-        <div className="panel-title">Create Guild</div>
-        <input
-          className="zbxp-input"
-          value={newGroupName}
-          onChange={(event) => setNewGroupName(event.target.value)}
-          placeholder="Guild name"
-          maxLength={50}
-        />
-        <button type="submit" className="btn btn-purple">Create Guild</button>
-      </form>
-
-      <form className="panel form-stack" onSubmit={onJoinGuild}>
-        <div className="panel-title">Join Guild By Code</div>
-        <input
-          className="zbxp-input"
-          value={joinCode}
-          onChange={(event) => setJoinCode(event.target.value)}
-          placeholder="Invite code"
-          maxLength={12}
-        />
-        <button type="submit" className="btn btn-cyan">Join Guild</button>
-      </form>
-
-      <div className="panel">
-        <div className="panel-title">My Guilds</div>
-        <div className="actions" style={{ marginBottom: '8px' }}>
-          <button type="button" className="btn btn-cyan" onClick={loadGroups}>Refresh My Guilds</button>
-        </div>
-        <div className="actions">
-          {groups.map((group) => (
-            <button
-              key={group.id}
-              type="button"
-              className={cx('history-item', 'guild-row-btn', 'guild-v4-row', selectedGroupId === group.id && 'is-selected')}
-              onClick={() => {
-                setSelectedGroupId(group.id)
-                setSelectedGuildName(group.name)
-                setMessage(`Selected guild: ${group.name}`)
-              }}
-            >
-              <strong>{group.name}</strong>
-              <span className="muted">Member guild • click to set active</span>
-            </button>
-          ))}
-        </div>
-        {groups.length === 0 ? <p className="muted">No guild memberships yet.</p> : null}
-        {selectedGuildName ? <p className="muted">Active guild: {selectedGuildName}</p> : null}
-      </div>
-
-      <div className="panel">
-        <div className="panel-title">World Guild Directory</div>
-        <div className="panel-sub">// browse every guild - joining still requires access</div>
-        <div className="actions" style={{ marginTop: '8px', marginBottom: '8px' }}>
-          <button type="button" className="btn btn-cyan" onClick={() => { loadAllGroups(); loadMemberCounts() }}>Refresh World Guilds</button>
-        </div>
-        <div className="actions" style={{ marginTop: '10px' }}>
-          {allGroups.map((group) => {
-            const isMember = groups.some((entry) => entry.id === group.id)
-            const capacity = Number(group.capacity || 10)
-            const members = Number(memberCounts[group.id] || 0)
-            const openSpots = Math.max(0, capacity - members)
-            return (
-              <button
-                key={group.id}
-                type="button"
-                className={cx('history-item', 'guild-row-btn', 'guild-v4-row', selectedGroupId === group.id && 'is-selected')}
-                onClick={() => {
-                  setSelectedGroupId(group.id)
-                  setSelectedGuildName(group.name)
-                  setMessage(
-                    isMember
-                      ? `Selected guild: ${group.name}`
-                      : `Viewing ${group.name}. Access is required before you can participate.`,
-                  )
-                }}
-              >
-                <strong>{group.name}</strong>
-                <span className="muted">Members: {members} / {capacity}</span>
-                <span className="muted">Open spots: {openSpots}</span>
-                <span className="muted">{isMember ? 'You are a member' : 'View only until joined/approved'}</span>
-              </button>
-            )
-          })}
-        </div>
-        {allGroups.length === 0 ? <p className="muted">No guilds visible in directory yet. Check `groups` select policy and click refresh.</p> : null}
-      </div>
-
-      <div className="panel">
-        <div className="panel-title">Guild Preview</div>
-        <div className="panel-sub">// top members in selected guild (read-only preview)</div>
-        <ul className="clean-list">
-          {guildPreviewBoard.map((row, index) => (
-            <li key={`${row.user_id}-${index}`} className="history-item leaderboard-v4-row">
-              <strong>#{index + 1} {row.username || 'Unknown'}</strong>
-              <span>{row.xp_total ?? row.xp ?? 0} XP</span>
-            </li>
-          ))}
-        </ul>
-        {selectedGroupId && guildPreviewBoard.length === 0 ? <p className="muted">No preview rows for this guild yet.</p> : null}
-        {!selectedGroupId ? <p className="muted">Select a guild from the directory to view top members.</p> : null}
-      </div>
-
-      <div className="panel">
-        <div className="panel-title">Guild Raid</div>
-        <div className="panel-sub">// group contribution objective with deadline</div>
-        <label className="input-label">
-          Raid challenge title
-          <input
-            className="zbxp-input"
-            value={challengeTitle}
-            onChange={(event) => setChallengeTitle(event.target.value)}
-            maxLength={120}
-          />
-        </label>
-        <div className="challenge-card" style={{ marginTop: '12px' }}>
-          <div className="challenge-title">{challengeTitle}</div>
-          <div className="ch-track"><div className="ch-fill" style={{ width: '35%' }} /></div>
-          <div className="ch-foot">
-            <span>Progress: <span>70 / 200</span></span>
-            <span>Deadline: <span>4 days</span></span>
+      <div className="guild-app">
+        <div className="guild-topbar">
+          <div className="guild-topbar-left">
+            <button type="button" className="btn btn-cyan" onClick={() => { loadGroups(); loadMemberCounts() }}>REFRESH MY GUILDS</button>
+            <button type="button" className="btn btn-cyan" onClick={() => { loadAllGroups(); loadMemberCounts() }}>REFRESH WORLD GUILDS</button>
+          </div>
+          <div className="guild-topbar-right">
+            <form className="guild-inline-form" onSubmit={onCreateGuild}>
+              <input className="zbxp-input" value={newGroupName} onChange={(event) => setNewGroupName(event.target.value)} placeholder="Create guild name" maxLength={50} />
+              <button type="submit" className="btn btn-purple">CREATE</button>
+            </form>
+            <form className="guild-inline-form" onSubmit={onJoinGuild}>
+              <input className="zbxp-input" value={joinCode} onChange={(event) => setJoinCode(event.target.value)} placeholder="Join by code" maxLength={12} />
+              <button type="submit" className="btn btn-cyan">JOIN</button>
+            </form>
           </div>
         </div>
-        <button type="button" className="btn btn-gold" onClick={onCreateChallenge}>
-          Create Raid Challenge
-        </button>
+        <div className="guild-header">
+          <div className="guild-header-inner">
+            <div className="guild-emblem">⚔</div>
+            <div className="guild-hdr-main">
+              <div className="guild-name">{selectedGuildTitle}</div>
+              <div className="guild-sub">// COMMUNITY • COMPETITION • EXECUTION</div>
+              <div className="guild-xp-bar-wrap">
+                <div className="guild-xp-bar" style={{ width: `${Math.max(0, Math.min(100, Math.round((guildXp / guildXpToNext) * 100)))}%` }} />
+              </div>
+              <div className="guild-xp-label"><span>{guildXp.toLocaleString()} XP</span><span>{guildXpToNext.toLocaleString()} XP TO LV.{guildLevel + 1}</span></div>
+              <div className="guild-meta-row">
+                <span>MEMBERS {selectedMembers}</span>
+                <span>OPEN {selectedOpenSpots}</span>
+                <span>GUILD LV.{guildLevel}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="guild-tabs">
+          <button type="button" className={cx('guild-tab', guildTab === 'members' && 'active')} onClick={() => setGuildTab('members')}>⚔ MEMBERS</button>
+          <button type="button" className={cx('guild-tab', guildTab === 'leaderboard' && 'active')} onClick={() => setGuildTab('leaderboard')}>🏆 LEADERBOARD</button>
+          <button type="button" className={cx('guild-tab', guildTab === 'boss' && 'active')} onClick={() => setGuildTab('boss')}>💀 BOSS</button>
+          <button type="button" className={cx('guild-tab', guildTab === 'quests' && 'active')} onClick={() => setGuildTab('quests')}>📜 QUESTS</button>
+          <button type="button" className={cx('guild-tab', guildTab === 'feed' && 'active')} onClick={() => setGuildTab('feed')}>💬 FEED</button>
+          <button type="button" className={cx('guild-tab', guildTab === 'directory' && 'active')} onClick={() => setGuildTab('directory')}>🌍 ALL GUILDS</button>
+        </div>
+
+        {guildTab === 'members' ? (
+          <div className="guild-tab-content active">
+            {selectedGroupId ? (
+              communityMembers.map((member, index) => {
+                const rankInfo = getRankInfo(member.xp)
+                return (
+                  <button
+                    key={member.user_id}
+                    type="button"
+                    className={cx('member-card', index === 0 && 'leader')}
+                  >
+                    <div className="member-left">
+                      <div className={cx('member-rank', `rank-${String(rankInfo.rank || 'E').toLowerCase()}`)}>{rankInfo.rank}</div>
+                      <div className="member-meta">
+                        <div className="member-name">{member.username}</div>
+                        <div className="member-title">{String(member.role || 'member').toUpperCase()} • STREAK {member.streak || 0}</div>
+                      </div>
+                    </div>
+                    <div className="member-right">
+                      <div className="member-xp">{Number(member.xp || 0).toLocaleString()} XP</div>
+                    </div>
+                  </button>
+                )
+              })
+            ) : (
+              <div className="panel-sub">Join a guild from ALL GUILDS to open your community.</div>
+            )}
+            {selectedGroupId && communityMembers.length === 0 ? <div className="panel-sub">No members visible yet for this guild.</div> : null}
+          </div>
+        ) : null}
+
+        {guildTab === 'directory' ? (
+          <div className="guild-tab-content active">
+            <div className="panel-sub">// click a guild to join instantly and open community</div>
+            <div className="guild-directory-grid">
+              {allGroups.map((group) => {
+                const isMember = groups.some((entry) => entry.id === group.id)
+                const capacity = Number(group.capacity || 10)
+                const members = Number(memberCounts[group.id] || 0)
+                const openSpots = Math.max(0, capacity - members)
+                return (
+                  <button
+                    key={group.id}
+                    type="button"
+                    className={cx('guild-directory-card', selectedGroupId === group.id && 'active', directoryJoinTarget?.id === group.id && 'focus')}
+                    onClick={() => {
+                      setDirectoryJoinTarget(group)
+                      openJoinFromDirectory(group)
+                    }}
+                  >
+                    <div className="guild-directory-title">{group.name}</div>
+                    <div className="guild-directory-sub">{isMember ? 'Already joined' : 'Open join'}</div>
+                    <div className="guild-directory-meta">{members}/{capacity} members • {openSpots} open</div>
+                  </button>
+                )
+              })}
+            </div>
+            {allGroups.length === 0 ? <div className="panel-sub">No guilds visible yet. Refresh and verify groups select policy.</div> : null}
+          </div>
+        ) : null}
+
+        {guildTab === 'leaderboard' ? (
+          <div className="guild-tab-content active">
+            {guildPreviewBoard.map((row, index) => (
+              <div key={`${row.user_id}-${index}`} className={cx('lb-entry', index < 3 && `rank-${index + 1}`)}>
+                <div className="lb-pos">#{index + 1}</div>
+                <div className="lb-name">{safeDisplayName(row)}</div>
+                <div className="lb-xp">{Number(row.xp_total ?? row.xp ?? 0).toLocaleString()} XP</div>
+              </div>
+            ))}
+            {selectedGroupId && guildPreviewBoard.length === 0 ? <div className="panel-sub">No leaderboard rows for this guild yet.</div> : null}
+            {!selectedGroupId ? <div className="panel-sub">Join a guild first to view guild leaderboard.</div> : null}
+          </div>
+        ) : null}
+
+        {guildTab === 'boss' ? (
+          <div className="guild-tab-content active">
+            <div className="boss-arena">
+              {!bossDefeated ? (
+                <>
+                  <div className="boss-header">
+                    <div>
+                      <div className="boss-tag">// CURRENT RAID BOSS</div>
+                      <div className="boss-name">SHADOW <span>MONARCH</span></div>
+                    </div>
+                    <div className="boss-avatar">👁️</div>
+                  </div>
+                  <div className="boss-hp-wrap">
+                    <div className="boss-hp-header">
+                      <div className="boss-hp-label">BOSS HP</div>
+                      <div className="boss-hp-val">{bossHp.toLocaleString()} / 10,000</div>
+                    </div>
+                    <div className="boss-hp-track">
+                      <div className="boss-hp-fill" style={{ width: `${Math.max(0, Math.min(100, Math.round((bossHp / 10000) * 100)))}%` }} />
+                      <div className="boss-hp-segments" />
+                    </div>
+                  </div>
+                  <div className="boss-contributors">
+                    {bossContributors.map((member, index) => (
+                      <div key={`${member.user_id}-${index}`} className={cx('boss-contrib-chip', index === 0 && 'top')}>
+                        <span>{member.username}</span>
+                        <span className="boss-contrib-dmg">{Number(member.xp || 0).toLocaleString()} XP</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="boss-attack-row">
+                    <button type="button" className="boss-attack-btn" onClick={() => attackBoss(100, false)}>⚔ ATTACK</button>
+                    <button type="button" className="boss-attack-btn" onClick={() => attackBoss(250, false)}>🗡 HEAVY STRIKE</button>
+                    <button type="button" className="boss-attack-btn special" onClick={() => attackBoss(500, true)}>💥 ULTIMATE</button>
+                  </div>
+                </>
+              ) : (
+                <div className="boss-defeated visible">
+                  <div className="boss-defeated-title">⚡ BOSS DEFEATED</div>
+                  <div className="boss-defeated-sub">THE GUILD PREVAILED - NEW BOSS READY</div>
+                  <div className="boss-loot-row">
+                    <div className="boss-loot">+500 XP</div>
+                    <div className="boss-loot">+150 GUILD XP</div>
+                    <div className="boss-loot">RARE DROP</div>
+                  </div>
+                  <button type="button" className="btn btn-cyan" onClick={respawnBoss} style={{ marginTop: '10px' }}>
+                    Respawn Boss
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="boss-kill-log">
+              <div className="panel-sub">// RAID HISTORY</div>
+              {bossKillLog.map((log) => (
+                <div key={log.id} className="boss-log-row">
+                  <span>{log.name} TIER {log.tier}</span>
+                  <span>MVP {log.mvp}</span>
+                  <span>{log.reward}</span>
+                  <span>{log.when}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {guildTab === 'quests' ? (
+          <div className="guild-tab-content active">
+            <div className="challenge-card" style={{ marginBottom: '12px' }}>
+              <input
+                className="zbxp-input"
+                value={challengeTitle}
+                onChange={(event) => setChallengeTitle(event.target.value)}
+                placeholder="Raid challenge title"
+                maxLength={120}
+                style={{ marginBottom: '8px' }}
+              />
+              <div className="challenge-title">{challengeTitle}</div>
+              <div className="ch-track"><div className="ch-fill" style={{ width: '35%' }} /></div>
+              <div className="ch-foot">
+                <span>Progress: <span>70 / 200</span></span>
+                <span>Deadline: <span>4 days</span></span>
+              </div>
+              <button type="button" className="btn btn-gold" onClick={onCreateChallenge} disabled={!selectedGroupId}>Create Raid Challenge</button>
+              {!selectedGroupId ? <div className="panel-sub" style={{ marginTop: '8px' }}>Join/select a guild first.</div> : null}
+            </div>
+            {guildQuests.map((quest) => {
+              const pct = Math.min(100, Math.round((quest.current / quest.total) * 100))
+              return (
+                <div key={quest.id} className={cx('gq-card', !quest.done && 'active-quest', quest.done && 'completed-quest')}>
+                  {quest.done ? <div className="gq-done-badge">✓ COMPLETE</div> : null}
+                  <div className="gq-header">
+                    <div className="gq-name">{quest.name}</div>
+                    <div className="gq-xp">+{quest.xp}</div>
+                  </div>
+                  <div className="gq-desc">{quest.desc}</div>
+                  <div className="gq-progress-wrap">
+                    <div className="gq-progress-header">
+                      <span>GUILD PROGRESS</span>
+                      <span>{quest.current} / {quest.total} ({pct}%)</span>
+                    </div>
+                    <div className="gq-track"><div className="gq-fill" style={{ width: `${pct}%` }} /></div>
+                  </div>
+                  {!quest.done ? (
+                    <div className="gq-actions">
+                      <button type="button" className="gq-btn contribute" onClick={() => contributeGuildQuest(quest.id)}>⚡ CONTRIBUTE</button>
+                      {pct >= 100 ? <button type="button" className="gq-btn complete" onClick={() => completeGuildQuest(quest.id)}>✓ CLAIM</button> : null}
+                    </div>
+                  ) : null}
+                </div>
+              )
+            })}
+          </div>
+        ) : null}
+
+        {guildTab === 'feed' ? (
+          <div className="guild-tab-content active">
+            {feedEntries.map((entry) => (
+              <div key={entry.id} className="feed-entry">
+                <div className="feed-icon">{entry.icon}</div>
+                <div className="feed-body">
+                  <div className="feed-text">{entry.text}</div>
+                  <div className="feed-time">{entry.time}</div>
+                </div>
+                {entry.xp ? <div className="feed-xp-badge">{entry.xp}</div> : null}
+              </div>
+            ))}
+            <div className="feed-chat-wrap">
+              <div className="feed-chat-input-row">
+                <input
+                  className="feed-chat-input"
+                  placeholder="POST TO GUILD FEED..."
+                  value={chatDraft}
+                  onChange={(event) => setChatDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') sendGuildChat()
+                  }}
+                  maxLength={120}
+                />
+                <button type="button" className="feed-chat-send" onClick={sendGuildChat}>SEND</button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </section>
   )
@@ -2044,6 +2770,7 @@ function GymPage({ onProfileRefresh, onXpGain }) {
       session_xp_frontend: sessionXp,
     }
 
+    const beforeXp = Number(profile?.total_xp ?? profile?.xp_total ?? 0)
     const { data, error: rpcError } = await supabase.rpc('log_workout', {
       p_date: logDate,
       p_completed: finalCompleted,
@@ -2056,8 +2783,9 @@ function GymPage({ onProfileRefresh, onXpGain }) {
     }
 
     const result = Array.isArray(data) ? data[0] : data
-    if (result?.awarded_xp && Number(result.awarded_xp) > 0) {
-      onXpGain(Number(result.awarded_xp))
+    const awardedXp = Number(result?.awarded_xp ?? 0)
+    if (awardedXp > 0) {
+      onXpGain(awardedXp)
     } else if (completed && bonusXp > 0) {
       // Fallback for older DB functions that don't return awarded_xp payloads.
       onXpGain(bonusXp)
@@ -2072,7 +2800,22 @@ function GymPage({ onProfileRefresh, onXpGain }) {
     setLogMessage(
       `Workout logged${bonusXp > 0 ? ` with cardio bonus (+${bonusXp} XP)` : ''}.`,
     )
-    await onProfileRefresh()
+    let refreshedProfile = await onProfileRefresh()
+    const afterXp = Number(refreshedProfile?.total_xp ?? refreshedProfile?.xp_total ?? 0)
+    const expectedFallbackXp = awardedXp > 0 ? awardedXp : (finalCompleted ? sessionXp + bonusXp : bonusXp)
+    if (expectedFallbackXp > 0 && afterXp <= beforeXp) {
+      const persistRes = await incrementProfileXp(profile.id, expectedFallbackXp)
+      if (persistRes.error) {
+        setError(`Workout logged but XP persist failed: ${persistRes.error.message}`)
+        return
+      }
+      refreshedProfile = await onProfileRefresh()
+      const persistedXp = Number(refreshedProfile?.total_xp ?? refreshedProfile?.xp_total ?? 0)
+      if (persistedXp <= beforeXp) {
+        setError('Workout logged, but XP still did not change. Check profile update policy.')
+        return
+      }
+    }
     loadGymData()
   }
 
@@ -2409,6 +3152,18 @@ function ToolsPage() {
     return `${mm}:${ss}`
   }
 
+  const formatPlannerTime = (timeText) => {
+    const raw = String(timeText || '').trim()
+    const match = raw.match(/^(\d{1,2}):(\d{2})$/)
+    if (!match) return raw
+    const hours = Number(match[1])
+    const minutes = Number(match[2])
+    if (Number.isNaN(hours) || Number.isNaN(minutes)) return raw
+    const date = new Date()
+    date.setHours(hours, minutes, 0, 0)
+    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })
+  }
+
   const addPlannerItem = () => {
     if (!plannerInput.trim()) return
     setPlannerItems((prev) => [
@@ -2514,7 +3269,7 @@ function ToolsPage() {
           <div className="planner-time-block" style={{ marginTop: '12px' }}>
             {plannerItems.map((item) => (
               <div key={`${item.time}-${item.title}`} className={cx('time-slot', 'filled', item.kind)}>
-                <div className="time-slot-time">{item.time}</div>
+                <div className="time-slot-time">{formatPlannerTime(item.time)}</div>
                 <div className="time-slot-content">
                   <div className="time-slot-title">{item.title}</div>
                   <div className="time-slot-sub">{item.sub}</div>
@@ -2954,6 +3709,7 @@ function LeaderboardPage() {
   const [globalBoard, setGlobalBoard] = useState([])
   const [uiMessage, setUiMessage] = useState('')
   const [error, setError] = useState('')
+  const [joinPromptGroup, setJoinPromptGroup] = useState(null)
 
   const loadGroups = async () => {
     setError('')
@@ -2991,13 +3747,14 @@ function LeaderboardPage() {
       return
     }
 
-    setBoard(boardRes.data || [])
+    const hydrated = await hydrateRowsWithProfileNames(boardRes.data || [])
+    setBoard(hydrated)
   }
 
   const loadAllGroups = async () => {
     const { data, error: allGroupsError } = await supabase
       .from('groups')
-      .select('id, name, created_by')
+      .select('id, name, created_by, invite_code')
       .order('name', { ascending: true })
 
     if (allGroupsError) {
@@ -3010,14 +3767,14 @@ function LeaderboardPage() {
   const loadGlobalBoard = async () => {
     let res = await supabase
       .from('profiles')
-      .select('id, username, total_xp')
+      .select('id, username, display_name, total_xp')
       .order('total_xp', { ascending: false })
       .limit(25)
 
     if (res.error && String(res.error.message || '').toLowerCase().includes('total_xp')) {
       res = await supabase
         .from('profiles')
-        .select('id, username, xp_total')
+        .select('id, username, display_name, xp_total')
         .order('xp_total', { ascending: false })
         .limit(25)
     }
@@ -3029,10 +3786,37 @@ function LeaderboardPage() {
 
     const normalized = (res.data || []).map((row) => ({
       user_id: row.id,
-      username: row.username,
+      username: row.display_name || row.username,
       xp_total: Number(row.total_xp ?? row.xp_total ?? 0),
     }))
-    setGlobalBoard(normalized)
+    const hydrated = await hydrateRowsWithProfileNames(normalized)
+    setGlobalBoard(hydrated)
+  }
+
+  const onJoinGroupFromDirectory = async (group) => {
+    if (!group?.id) return
+    setError('')
+    setUiMessage('')
+
+    if (!group.invite_code) {
+      setError('Join failed: this guild has no invite code. Ask guild owner for a code.')
+      return
+    }
+
+    const joinRes = await supabase.rpc('join_guild_by_code', {
+      p_code: String(group.invite_code).toUpperCase(),
+    })
+
+    if (joinRes.error) {
+      setError(`Join failed: ${joinRes.error.message}`)
+      return
+    }
+
+    setUiMessage(`Joined ${group.name}.`)
+    setJoinPromptGroup(null)
+    await loadGroups()
+    setSelectedGroupId(group.id)
+    await loadBoard()
   }
 
   useEffect(() => {
@@ -3092,6 +3876,7 @@ function LeaderboardPage() {
                 className={cx('history-item', 'guild-row-btn', 'guild-v4-row', selectedGroupId === group.id && 'is-selected')}
                 onClick={() => {
                   setSelectedGroupId(group.id)
+                  setJoinPromptGroup(group)
                   setUiMessage(
                     isMember
                       ? `Selected group: ${group.name}`
@@ -3106,6 +3891,20 @@ function LeaderboardPage() {
           })}
         </div>
         {allGroups.length === 0 ? <p className="muted">No guild directory rows visible yet.</p> : null}
+        {joinPromptGroup && !groups.some((entry) => entry.id === joinPromptGroup.id) ? (
+          <div className="challenge-card" style={{ marginTop: '10px' }}>
+            <div className="challenge-title">Join {joinPromptGroup.name}?</div>
+            <div className="panel-sub">Join this guild to compete on member boards.</div>
+            <div className="actions" style={{ marginTop: '8px' }}>
+              <button type="button" className="btn btn-green" onClick={() => onJoinGroupFromDirectory(joinPromptGroup)}>
+                Join Guild
+              </button>
+              <button type="button" className="btn btn-red" onClick={() => setJoinPromptGroup(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="panel">
@@ -3137,7 +3936,7 @@ function LeaderboardPage() {
         <ul className="clean-list">
           {board.map((row) => (
             <li key={row.user_id} className="history-item leaderboard-v4-row">
-              <strong>{row.username || 'Unknown'}</strong>
+              <strong>{safeDisplayName(row)}</strong>
               <span>{row.xp_total ?? row.xp ?? 0} XP</span>
             </li>
           ))}
@@ -3153,7 +3952,7 @@ function LeaderboardPage() {
         <ul className="clean-list">
           {globalBoard.map((row, index) => (
             <li key={row.user_id} className="history-item leaderboard-v4-row">
-              <strong>#{index + 1} {row.username || 'Unknown'}</strong>
+              <strong>#{index + 1} {safeDisplayName(row)}</strong>
               <span>{row.xp_total ?? 0} XP</span>
             </li>
           ))}
@@ -3304,7 +4103,7 @@ function AppShell({ onSignOut, onProfileRefresh, statPulse, onClearXpPulse, onXp
         <main className="tab-content active">
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/dashboard" element={<DashboardPage onProfileRefresh={onProfileRefresh} onXpGain={onXpGain} />} />
             <Route path="/quests" element={<QuestsPage onProfileRefresh={onProfileRefresh} onXpGain={onXpGain} />} />
             <Route path="/boss" element={<BossFightPage />} />
             <Route path="/skills" element={<SkillTreePage />} />
@@ -3327,31 +4126,107 @@ function App() {
   const [isBooting, setIsBooting] = useState(true)
   const [profileError, setProfileError] = useState('')
   const [bootError, setBootError] = useState('')
+  const [bootWarning, setBootWarning] = useState('')
+  const [profilePendingSince, setProfilePendingSince] = useState(0)
   const [xpPulse, setXpPulse] = useState(0)
-  const perksState = usePerks()
+  const perksState = usePerks(session?.user?.id || null)
 
   const fetchProfile = async (user) => {
-    try {
-      const nextProfile = await withTimeout(ensureProfile(user), 12000, 'Profile load timed out. Please sign in again.')
-      const normalizedProfile = {
-        ...nextProfile,
-        total_xp: Number(nextProfile?.total_xp ?? nextProfile?.xp_total ?? 0),
-      }
-      setProfile(normalizedProfile)
-      setProfileError('')
-      return normalizedProfile
-    } catch (error) {
-      const message = error?.message || 'Failed to load profile'
-      if (isAuthLockTimeoutError(message)) {
-        setBootError('Session lock timed out. Close other ZBXP tabs/windows, then sign in again.')
-        setSession(null)
-        setProfile(null)
+    const attempts = [
+      { timeoutMs: 20000, backoffMs: 400 },
+      { timeoutMs: 20000, backoffMs: 800 },
+      { timeoutMs: 20000, backoffMs: 1200 },
+    ]
+    let lastError = null
+
+    for (let i = 0; i < attempts.length; i += 1) {
+      const { timeoutMs, backoffMs } = attempts[i]
+      try {
+        console.info('[bootstrap.profile] attempt', i + 1, 'timeout', timeoutMs)
+        const nextProfile = await withTimeout(ensureProfile(user), timeoutMs, 'Profile load attempt timed out.')
+        const normalizedProfile = {
+          ...nextProfile,
+          username: safeDisplayName(nextProfile, user.id),
+          total_xp: Number(nextProfile?.total_xp ?? nextProfile?.xp_total ?? 0),
+          current_streak: Number(nextProfile?.current_streak ?? 0),
+          longest_streak: Number(nextProfile?.longest_streak ?? 0),
+        }
+        setProfile(normalizedProfile)
         setProfileError('')
-        return null
+        setBootError('')
+        console.info('[bootstrap.profile] success on attempt', i + 1)
+        return normalizedProfile
+      } catch (error) {
+        lastError = error
+        console.warn('[bootstrap.profile] attempt failed', i + 1, String(error?.message || error))
+        if (i < attempts.length - 1 && backoffMs > 0) {
+          await sleep(backoffMs)
+        }
       }
-      setProfileError(message)
+    }
+
+    try {
+      const fallbackProfile = await supabase
+        .from('profiles')
+        .select('id, username, player_class, path, total_xp, xp_total, current_streak, longest_streak')
+        .eq('id', user.id)
+        .maybeSingle()
+      if (!fallbackProfile.error && fallbackProfile.data) {
+        const normalizedProfile = {
+          ...fallbackProfile.data,
+          username: safeDisplayName(fallbackProfile.data, user.id),
+          total_xp: Number(fallbackProfile.data?.total_xp ?? fallbackProfile.data?.xp_total ?? 0),
+          current_streak: Number(fallbackProfile.data?.current_streak ?? 0),
+          longest_streak: Number(fallbackProfile.data?.longest_streak ?? 0),
+        }
+        setProfile(normalizedProfile)
+        setProfileError('')
+        setBootError('')
+        console.info('[bootstrap.profile] recovered via fallback select')
+        return normalizedProfile
+      }
+      if (fallbackProfile.error) {
+        lastError = fallbackProfile.error
+      }
+    } catch (fallbackError) {
+      lastError = fallbackError
+    }
+
+    try {
+      const minimalFallback = await supabase
+        .from('profiles')
+        .select('id, username, player_class')
+        .eq('id', user.id)
+        .maybeSingle()
+      if (!minimalFallback.error && minimalFallback.data) {
+        const normalizedProfile = {
+          ...minimalFallback.data,
+          username: safeDisplayName(minimalFallback.data, user.id),
+          total_xp: 0,
+          current_streak: 0,
+          longest_streak: 0,
+        }
+        setProfile(normalizedProfile)
+        setProfileError('')
+        setBootError('')
+        console.info('[bootstrap.profile] recovered via minimal fallback')
+        return normalizedProfile
+      }
+      if (minimalFallback.error) {
+        lastError = minimalFallback.error
+      }
+    } catch (minimalError) {
+      lastError = minimalError
+    }
+
+    const message = lastError?.message || 'Failed to load profile'
+    if (isAuthLockTimeoutError(message)) {
+      setBootWarning('Session lock contention detected. Continuing bootstrap without exclusive lock.')
+      setProfileError('Profile load delayed by lock contention. Tap Retry Profile Load.')
       return null
     }
+    setProfileError(message)
+    return null
   }
 
   useEffect(() => {
@@ -3368,35 +4243,63 @@ function App() {
 
     const boot = async () => {
       try {
-        const { data, error } = await withTimeout(
-          supabase.auth.getSession(),
-          8000,
-          'Auth session restore timed out. Please sign in again.',
-        )
+        const lockState = await tryAcquireBootLock()
+        if (isActive && !lockState.acquired) {
+          setBootWarning('Another tab is booting. Continuing here without waiting for lock.')
+        }
+
+        let sessionData = null
+        let lastAuthError = null
+        const authAttempts = [20000, 20000, 20000]
+        for (let i = 0; i < authAttempts.length; i += 1) {
+          try {
+            const { data, error } = await withTimeout(
+              supabase.auth.getSession(),
+              authAttempts[i],
+              'Auth session restore timed out.',
+            )
+            if (error) throw error
+            sessionData = data
+            lastAuthError = null
+            break
+          } catch (error) {
+            lastAuthError = error
+            console.warn('[bootstrap.auth] getSession attempt failed', i + 1, String(error?.message || error))
+            if (i < authAttempts.length - 1) {
+              await sleep(400 * (i + 1))
+            }
+          }
+        }
+
         if (!isActive) return
 
-        if (error) {
-          if (isAuthLockTimeoutError(error)) {
-            setBootError('Session lock timed out. Close other ZBXP tabs/windows, then sign in again.')
-            setSession(null)
-            setProfile(null)
-            return
+        if (lastAuthError) {
+          const authMessage = lastAuthError?.message || 'Failed to restore session'
+          if (isAuthLockTimeoutError(lastAuthError)) {
+            setBootWarning('Session lock contention detected. Could not restore instantly; continuing without lock.')
+          } else {
+            setBootError(authMessage)
           }
-          setBootError(error.message || 'Failed to restore session')
           setSession(null)
+          setProfile(null)
           return
         }
 
-        setSession(data.session)
-        if (data.session?.user) {
-          await fetchProfile(data.session.user)
+        setBootError('')
+        if (sessionData.session && !sessionData.session.user) {
+          setSession(null)
+          setProfile(null)
+          setProfileError('Session is missing user identity. Please sign in again.')
+          return
+        }
+        setSession(sessionData.session)
+        if (sessionData.session?.user) {
+          await fetchProfile(sessionData.session.user)
         }
       } catch (error) {
         if (!isActive) return
         if (isAuthLockTimeoutError(error)) {
-          setBootError('Session lock timed out. Close other ZBXP tabs/windows, then sign in again.')
-          setSession(null)
-          setProfile(null)
+          setBootWarning('Session lock contention detected. Continuing without exclusive lock.')
           return
         }
         setBootError(error?.message || 'Unexpected auth bootstrap error')
@@ -3411,25 +4314,30 @@ function App() {
 
     timeoutId = setTimeout(() => {
       if (!isActive) return
-      setBootError((prev) => prev || 'Auth bootstrap timed out. Please refresh and try again.')
+      setBootError((prev) => prev || 'Auth bootstrap timed out. Use Retry Profile Load or sign in again.')
       setIsBooting(false)
-    }, 9000)
+    }, 30000)
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
       try {
+        if (nextSession && !nextSession.user) {
+          setSession(null)
+          setProfile(null)
+          setProfileError('Session became invalid (missing user identity). Please sign in again.')
+          return
+        }
         setSession(nextSession)
         if (nextSession?.user) {
           await fetchProfile(nextSession.user)
         } else {
           setProfile(null)
+          setProfileError('')
         }
       } catch (error) {
         if (isAuthLockTimeoutError(error)) {
-          setBootError('Session lock timed out. Close other ZBXP tabs/windows, then sign in again.')
-          setSession(null)
-          setProfile(null)
+          setBootWarning('Session lock contention detected. Keeping current session state.')
           return
         }
         setBootError(error?.message || 'Failed to update auth state')
@@ -3445,14 +4353,32 @@ function App() {
     }
   }, [])
 
+  useEffect(() => {
+    if (isBooting || !session?.user || profile || profileError) {
+      setProfilePendingSince(0)
+      return
+    }
+    if (!profilePendingSince) {
+      setProfilePendingSince(Date.now())
+      return
+    }
+    const stalledMs = Date.now() - profilePendingSince
+    if (stalledMs >= 12000) {
+      setProfileError('Profile load stalled. Tap Retry Profile Load or Reset Session.')
+    }
+  }, [isBooting, session, profile, profileError, profilePendingSince])
+
   const handleSignOut = async () => {
     if (!supabase) return
     await supabase.auth.signOut()
   }
 
   const refreshProfile = async () => {
-    if (!session?.user) return
-    await fetchProfile(session.user)
+    if (!session?.user) {
+      setProfileError('Session missing user identity. Reset Session and sign in again.')
+      return null
+    }
+    return fetchProfile(session.user)
   }
 
   const pushXpGain = (amount) => {
@@ -3471,12 +4397,13 @@ function App() {
         <div className="panel auth-panel">
           <p>Loading...</p>
           {bootError ? <p className="error-text">{bootError}</p> : null}
+          {bootWarning ? <p className="muted">{bootWarning}</p> : null}
         </div>
       </main>
     )
   }
 
-  if (typeof window !== 'undefined' && window.location.pathname === '/auth/callback') {
+  if (hasAuthCallbackParams()) {
     return <AuthCallbackPage />
   }
 
@@ -3489,6 +4416,7 @@ function App() {
       <main className="auth-shell">
         <div className="panel auth-panel">
           <p>Profile bootstrap failed: {String(profileError)}</p>
+          {bootWarning ? <p className="muted">{bootWarning}</p> : null}
           <div className="actions">
             <button type="button" className="btn btn-cyan" onClick={refreshProfile}>Retry Profile Load</button>
             <button type="button" className="btn btn-red" onClick={handleSignOut}>Reset Session</button>
@@ -3503,6 +4431,7 @@ function App() {
       <main className="auth-shell">
         <div className="panel auth-panel">
           <p>{profileError || 'Loading profile...'}</p>
+          {bootWarning ? <p className="muted">{bootWarning}</p> : null}
           <div className="actions">
             <button type="button" className="btn btn-cyan" onClick={refreshProfile}>Retry Profile Load</button>
             <button type="button" className="btn btn-red" onClick={handleSignOut}>Reset Session</button>
