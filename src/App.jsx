@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
+import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { hasSupabaseEnv, supabase, supabaseEnvError } from './lib/supabaseClient'
 import { usePerks } from './hooks/usePerks'
 import { PATH_CONFIG, PATH_KEYS } from './config/pathConfig'
@@ -83,40 +83,65 @@ function withTimeout(promise, timeoutMs, message) {
 async function ensureProfile(user) {
   const safeUsername = (user.email?.split('@')[0] || `player_${user.id.slice(0, 6)}`).slice(0, 24)
 
-  const { error: upsertError } = await supabase
-    .from('profiles')
-    .upsert(
-      {
-        id: user.id,
-        username: safeUsername,
-        player_class: 'HUNTER',
-        path: 'HUNTER',
-      },
-      { onConflict: 'id' },
-    )
-
-  if (upsertError) throw upsertError
-
-  let profileResponse = await supabase
-    .from('profiles')
-    .select('id, username, path, player_class, total_xp, current_streak, longest_streak')
-    .eq('id', user.id)
-    .single()
-
-  if (
-    profileResponse.error &&
-    String(profileResponse.error.message || '').toLowerCase().includes('column') &&
-    String(profileResponse.error.message || '').toLowerCase().includes('total_xp')
-  ) {
-    profileResponse = await supabase
-      .from('profiles')
-      .select('id, username, path, player_class, xp_total, current_streak, longest_streak')
-      .eq('id', user.id)
-      .single()
+  const seedPayload = {
+    id: user.id,
+    username: safeUsername,
+    player_class: 'HUNTER',
+    path: 'HUNTER',
+    total_xp: 0,
+    xp_total: 0,
+    current_streak: 0,
+    longest_streak: 0,
   }
 
-  if (profileResponse.error) throw profileResponse.error
-  return profileResponse.data
+  let insertRes = await supabase
+    .from('profiles')
+    .upsert(seedPayload, { onConflict: 'id', ignoreDuplicates: true })
+
+  if (insertRes.error) {
+    const msg = String(insertRes.error.message || '').toLowerCase()
+    const missingOptionalColumn =
+      msg.includes('column') &&
+      (msg.includes('path') || msg.includes('total_xp') || msg.includes('xp_total') || msg.includes('current_streak') || msg.includes('longest_streak'))
+    if (missingOptionalColumn) {
+      insertRes = await supabase
+        .from('profiles')
+        .upsert(
+          {
+            id: user.id,
+            username: safeUsername,
+            player_class: 'HUNTER',
+          },
+          { onConflict: 'id', ignoreDuplicates: true },
+        )
+    }
+  }
+
+  if (insertRes.error) throw insertRes.error
+
+  const selectCandidates = [
+    'id, username, path, player_class, total_xp, current_streak, longest_streak',
+    'id, username, path, player_class, xp_total, current_streak, longest_streak',
+    'id, username, player_class, total_xp, current_streak, longest_streak',
+    'id, username, player_class, xp_total, current_streak, longest_streak',
+    'id, username, player_class',
+  ]
+
+  let lastError = null
+  for (const fields of selectCandidates) {
+    const profileResponse = await supabase
+      .from('profiles')
+      .select(fields)
+      .eq('id', user.id)
+      .single()
+
+    if (!profileResponse.error) {
+      return profileResponse.data
+    }
+    lastError = profileResponse.error
+  }
+
+  throw lastError || new Error('Profile query failed')
 }
 
 function PathSelectScreen({ profile, onSaved }) {
@@ -341,7 +366,7 @@ function AuthScreen() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin,
+        redirectTo: `${window.location.origin}/auth/callback`,
       },
     })
     setIsSubmitting(false)
@@ -534,6 +559,79 @@ function AuthScreen() {
           </form>
         </div>
       </div>
+    </main>
+  )
+}
+
+function AuthCallbackPage() {
+  const navigate = useNavigate()
+  const [status, setStatus] = useState('Verifying your link...')
+  const [error, setError] = useState('')
+  const [hasSession, setHasSession] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+
+    const run = async () => {
+      if (!supabase) {
+        if (!cancelled) {
+          setError(supabaseEnvError || 'Auth client unavailable')
+          setStatus('Verification unavailable')
+        }
+        return
+      }
+
+      try {
+        const url = new URL(window.location.href)
+        const code = url.searchParams.get('code')
+        if (code) {
+          const exchange = await supabase.auth.exchangeCodeForSession(code)
+          if (exchange.error) {
+            throw exchange.error
+          }
+        }
+
+        const sessionRes = await supabase.auth.getSession()
+        if (sessionRes.error) throw sessionRes.error
+
+        if (!cancelled) {
+          const ok = Boolean(sessionRes.data.session)
+          setHasSession(ok)
+          setStatus(ok ? 'Email verified. You are ready.' : 'Verification complete. Please login to continue.')
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err?.message || 'Verification failed')
+          setStatus('Verification failed')
+        }
+      }
+    }
+
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  return (
+    <main className="auth-shell">
+      <section className="panel auth-panel form-stack">
+        <h2>Auth Callback</h2>
+        <p className="muted">{status}</p>
+        {error ? <p className="error-text">{error}</p> : null}
+        {hasSession ? (
+          <button type="button" className="btn btn-cyan" onClick={() => navigate('/dashboard')}>
+            Continue to Dashboard
+          </button>
+        ) : (
+          <button type="button" className="btn btn-cyan" onClick={() => navigate('/')}>
+            Login
+          </button>
+        )}
+        <button type="button" className="text-button" onClick={() => navigate('/')}>
+          Back to Login
+        </button>
+      </section>
     </main>
   )
 }
@@ -925,6 +1023,10 @@ function QuestsPage({ onProfileRefresh, onXpGain }) {
     }
 
     const result = Array.isArray(data) ? data[0] : data
+    if (import.meta.env.DEV) {
+      // Dev instrumentation for XP persistence tracking.
+      console.debug('[quest.complete] rpc result', { activeQuestId, questId, result })
+    }
     const awardedXp = Number(result?.awarded_xp ?? 0)
     if (awardedXp > 0) {
       onXpGain(awardedXp)
@@ -933,6 +1035,9 @@ function QuestsPage({ onProfileRefresh, onXpGain }) {
     setSelectedActiveId(activeQuestId)
     setQuestMessage('Quest completion logged.')
     await onProfileRefresh()
+    if (import.meta.env.DEV) {
+      console.debug('[quest.complete] profile refresh requested')
+    }
     loadQuestData()
   }
 
@@ -1230,6 +1335,8 @@ function GuildPage() {
   const { profile } = useApp()
   const [groups, setGroups] = useState([])
   const [allGroups, setAllGroups] = useState([])
+  const [memberCounts, setMemberCounts] = useState({})
+  const [guildPreviewBoard, setGuildPreviewBoard] = useState([])
   const [selectedGroupId, setSelectedGroupId] = useState('')
   const [challengeTitle, setChallengeTitle] = useState('Weekly Raid: 200 total completions')
   const [newGroupName, setNewGroupName] = useState('')
@@ -1237,6 +1344,7 @@ function GuildPage() {
   const [selectedGuildName, setSelectedGuildName] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const toXpValue = (row) => Number(row?.xp_total ?? row?.total_xp ?? row?.xp ?? 0)
 
   const loadGroups = async () => {
     setError('')
@@ -1258,23 +1366,122 @@ function GuildPage() {
   }
 
   const loadAllGroups = async () => {
-    const { data, error: allGroupsError } = await supabase
+    let allGroupsRes = await supabase
       .from('groups')
-      .select('id, name, created_by')
+      .select('id, name, created_by, capacity, created_at')
       .order('name', { ascending: true })
 
-    if (allGroupsError) {
-      setError((prev) => prev || allGroupsError.message)
+    if (allGroupsRes.error) {
+      const msg = String(allGroupsRes.error.message || '').toLowerCase()
+      if (msg.includes('column') && msg.includes('capacity')) {
+        allGroupsRes = await supabase
+          .from('groups')
+          .select('id, name, created_by, created_at')
+          .order('name', { ascending: true })
+      }
+    }
+
+    if (allGroupsRes.error) {
+      setError((prev) => prev || allGroupsRes.error.message)
       return
     }
-    setAllGroups(data || [])
+
+    setAllGroups(allGroupsRes.data || [])
+  }
+
+  const loadMemberCounts = async () => {
+    const { data, error: memberError } = await supabase
+      .from('group_members')
+      .select('group_id')
+
+    if (memberError) {
+      setError((prev) => prev || memberError.message)
+      return
+    }
+
+    const counts = {}
+    for (const row of data || []) {
+      counts[row.group_id] = (counts[row.group_id] || 0) + 1
+    }
+    setMemberCounts(counts)
+  }
+
+  const loadGuildPreviewBoard = async (groupId) => {
+    if (!groupId) {
+      setGuildPreviewBoard([])
+      return
+    }
+    const boardRes = await supabase.rpc('get_leaderboard', {
+      p_group_id: groupId,
+      p_timeframe: 'all_time',
+    })
+    if (!boardRes.error) {
+      setGuildPreviewBoard((boardRes.data || []).slice(0, 5))
+      return
+    }
+
+    // Graceful fallback when leaderboard RPC is unavailable or blocked by RLS.
+    const membersRes = await supabase
+      .from('group_members')
+      .select('user_id')
+      .eq('group_id', groupId)
+      .limit(25)
+
+    if (membersRes.error) {
+      setGuildPreviewBoard([])
+      setError((prev) => prev || `Guild preview unavailable: ${boardRes.error.message}`)
+      return
+    }
+
+    const memberIds = [...new Set((membersRes.data || []).map((row) => row.user_id).filter(Boolean))]
+    if (memberIds.length === 0) {
+      setGuildPreviewBoard([])
+      return
+    }
+
+    let profileRes = await supabase
+      .from('profiles')
+      .select('id, username, total_xp, xp_total')
+      .in('id', memberIds)
+      .limit(25)
+
+    if (profileRes.error && String(profileRes.error.message || '').toLowerCase().includes('total_xp')) {
+      profileRes = await supabase
+        .from('profiles')
+        .select('id, username, xp_total')
+        .in('id', memberIds)
+        .limit(25)
+    }
+
+    if (profileRes.error) {
+      setGuildPreviewBoard([])
+      setError((prev) => prev || `Guild preview unavailable: ${profileRes.error.message}`)
+      return
+    }
+
+    const normalized = (profileRes.data || [])
+      .map((row) => ({
+        user_id: row.id,
+        username: row.username,
+        xp_total: toXpValue(row),
+      }))
+      .sort((a, b) => b.xp_total - a.xp_total)
+      .slice(0, 5)
+
+    setGuildPreviewBoard(normalized)
   }
 
   useEffect(() => {
     loadGroups()
     loadAllGroups()
+    loadMemberCounts()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile.id])
+
+  useEffect(() => {
+    loadGuildPreviewBoard(selectedGroupId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedGroupId])
 
   const onCreateGuild = async (event) => {
     event.preventDefault()
@@ -1394,11 +1601,14 @@ function GuildPage() {
         <div className="panel-title">World Guild Directory</div>
         <div className="panel-sub">// browse every guild - joining still requires access</div>
         <div className="actions" style={{ marginTop: '8px', marginBottom: '8px' }}>
-          <button type="button" className="btn btn-cyan" onClick={loadAllGroups}>Refresh World Guilds</button>
+          <button type="button" className="btn btn-cyan" onClick={() => { loadAllGroups(); loadMemberCounts() }}>Refresh World Guilds</button>
         </div>
         <div className="actions" style={{ marginTop: '10px' }}>
           {allGroups.map((group) => {
             const isMember = groups.some((entry) => entry.id === group.id)
+            const capacity = Number(group.capacity || 10)
+            const members = Number(memberCounts[group.id] || 0)
+            const openSpots = Math.max(0, capacity - members)
             return (
               <button
                 key={group.id}
@@ -1415,12 +1625,29 @@ function GuildPage() {
                 }}
               >
                 <strong>{group.name}</strong>
+                <span className="muted">Members: {members} / {capacity}</span>
+                <span className="muted">Open spots: {openSpots}</span>
                 <span className="muted">{isMember ? 'You are a member' : 'View only until joined/approved'}</span>
               </button>
             )
           })}
         </div>
         {allGroups.length === 0 ? <p className="muted">No guilds visible in directory yet. Check `groups` select policy and click refresh.</p> : null}
+      </div>
+
+      <div className="panel">
+        <div className="panel-title">Guild Preview</div>
+        <div className="panel-sub">// top members in selected guild (read-only preview)</div>
+        <ul className="clean-list">
+          {guildPreviewBoard.map((row, index) => (
+            <li key={`${row.user_id}-${index}`} className="history-item leaderboard-v4-row">
+              <strong>#{index + 1} {row.username || 'Unknown'}</strong>
+              <span>{row.xp_total ?? row.xp ?? 0} XP</span>
+            </li>
+          ))}
+        </ul>
+        {selectedGroupId && guildPreviewBoard.length === 0 ? <p className="muted">No preview rows for this guild yet.</p> : null}
+        {!selectedGroupId ? <p className="muted">Select a guild from the directory to view top members.</p> : null}
       </div>
 
       <div className="panel">
@@ -2954,12 +3181,59 @@ function AIPage() {
 
 function AppShell({ onSignOut, onProfileRefresh, statPulse, onClearXpPulse, onXpGain, weeklyXP }) {
   const { pathConfig, profile } = useApp()
+  const iosSafariInstallable = useMemo(() => {
+    if (typeof window === 'undefined') return false
+    const ua = window.navigator.userAgent.toLowerCase()
+    const isIos = /iphone|ipad|ipod/.test(ua)
+    const isSafari = /safari/.test(ua) && !/crios|fxios|edgios/.test(ua)
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
+    return Boolean(isIos && isSafari && !isStandalone)
+  }, [])
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null)
+  const [isInstallEligible, setIsInstallEligible] = useState(false)
+  const [showIosInstallHelp, setShowIosInstallHelp] = useState(false)
 
   useEffect(() => {
     if (!statPulse) return
     const timeout = setTimeout(() => onClearXpPulse(), 1000)
     return () => clearTimeout(timeout)
   }, [statPulse, onClearXpPulse])
+
+  useEffect(() => {
+    const onBeforeInstallPrompt = (event) => {
+      event.preventDefault()
+      setDeferredInstallPrompt(event)
+      setIsInstallEligible(true)
+    }
+
+    const onInstalled = () => {
+      setDeferredInstallPrompt(null)
+      setIsInstallEligible(false)
+      setShowIosInstallHelp(false)
+    }
+
+    window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt)
+    window.addEventListener('appinstalled', onInstalled)
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt)
+      window.removeEventListener('appinstalled', onInstalled)
+    }
+  }, [])
+
+  const onInstallClick = async () => {
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt()
+      const result = await deferredInstallPrompt.userChoice
+      if (result?.outcome) {
+        setIsInstallEligible(false)
+      }
+      setDeferredInstallPrompt(null)
+      return
+    }
+    if (iosSafariInstallable) {
+      setShowIosInstallHelp(true)
+    }
+  }
 
   return (
     <div className="sl-hud">
@@ -2975,9 +3249,22 @@ function AppShell({ onSignOut, onProfileRefresh, statPulse, onClearXpPulse, onXp
               <span className="status-dot" />
               {pathConfig.shellTitle || 'SYSTEM ONLINE'}
             </div>
+            {(isInstallEligible || iosSafariInstallable) ? (
+              <button type="button" className="btn btn-cyan" onClick={onInstallClick}>
+                Install
+              </button>
+            ) : null}
             <button type="button" className="btn btn-red" onClick={onSignOut}>Sign Out</button>
           </div>
         </header>
+
+        {showIosInstallHelp ? (
+          <div className="panel install-help-panel">
+            <div className="panel-title">Install On iPhone</div>
+            <div className="panel-sub">Safari {'->'} Share icon {'->'} Add to Home Screen</div>
+            <button type="button" className="btn btn-cyan" onClick={() => setShowIosInstallHelp(false)}>Close</button>
+          </div>
+        ) : null}
 
         <ProfileHUD profile={profile} weeklyXP={weeklyXP} statPulse={statPulse} />
 
@@ -3187,6 +3474,10 @@ function App() {
         </div>
       </main>
     )
+  }
+
+  if (typeof window !== 'undefined' && window.location.pathname === '/auth/callback') {
+    return <AuthCallbackPage />
   }
 
   if (!session) {
