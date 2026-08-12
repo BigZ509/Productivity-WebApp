@@ -544,7 +544,7 @@ function AuthScreen() {
   }
 
   return (
-    <main className="auth-shell auth-cinematic auth-v4-shell" onMouseMove={onMouseMove}>
+    <main className="auth-shell auth-cinematic" onMouseMove={onMouseMove}>
       <div className="auth-bg-stage" aria-hidden="true">
         <div className="auth-bg-overlay" />
         <div
@@ -555,51 +555,51 @@ function AuthScreen() {
         />
       </div>
 
-      <div className="auth-v4-wrap">
-        <div className="auth-v4-logo">
-          <div className="auth-v4-logo-gate">// HUNTER AUTHENTICATION PORTAL</div>
-          <div className="auth-v4-logo-title">ZBXP</div>
-          <div className="auth-v4-logo-sub">SOLO LEVELING PRODUCTIVITY SYSTEM - <span>CLOSED BETA</span></div>
+      <div className="auth-wrap">
+        <div className="auth-logo">
+          <div className="auth-logo-gate">// HUNTER AUTHENTICATION PORTAL</div>
+          <div className="auth-logo-title">ZBXP</div>
+          <div className="auth-logo-sub">SOLO LEVELING PRODUCTIVITY SYSTEM - <span>CLOSED BETA</span></div>
         </div>
 
-        <div className="auth-v4-rank-selector">
+        <div className="auth-rank-selector">
           {['E', 'D', 'C', 'B', 'A', 'S'].map((rank) => (
             <button
               key={rank}
               type="button"
-              className={cx('auth-v4-rank-pill', selectedRank === rank && 'active')}
+              className={cx('auth-rank-pill', selectedRank === rank && 'active')}
               onClick={() => setSelectedRank(rank)}
             >
-              <div className="auth-v4-rank-letter">{rank}</div>
-              <div className="auth-v4-rank-label">
+              <div className="auth-rank-letter">{rank}</div>
+              <div className="auth-rank-label">
                 {rank === 'E' ? 'ENTRY' : rank === 'D' ? 'NOVICE' : rank === 'C' ? 'SKILLED' : rank === 'B' ? 'ELITE' : rank === 'A' ? 'VETERAN' : 'LEGEND'}
               </div>
             </button>
           ))}
         </div>
 
-        <div className="auth-v4-card">
-          <div className={cx('auth-v4-flash', feedback && 'visible')}>
+        <div className="auth-card">
+          <div className={cx('auth-flash', feedback && 'visible')}>
             {feedback || 'ACCESS PORTAL READY'}
           </div>
 
-          <form className="auth-v4-inner" onSubmit={onSubmit}>
-            <div className="auth-v4-header">
-              <div className="auth-v4-title">{mode === 'signin' ? 'HUNTER LOGIN' : 'CREATE HUNTER'}</div>
-              <div className="auth-v4-mode-toggle">
-                <button type="button" className={cx('auth-v4-mode-btn', mode === 'signin' && 'active')} onClick={() => { setMode('signin'); setFeedback('') }}>
+          <form className="auth-inner" onSubmit={onSubmit}>
+            <div className="auth-header">
+              <div className="auth-title">{mode === 'signin' ? 'HUNTER LOGIN' : 'CREATE HUNTER'}</div>
+              <div className="auth-mode-toggle">
+                <button type="button" className={cx('auth-mode-btn', mode === 'signin' && 'active')} onClick={() => { setMode('signin'); setFeedback('') }}>
                   LOGIN
                 </button>
-                <button type="button" className={cx('auth-v4-mode-btn', mode === 'signup' && 'active')} onClick={() => { setMode('signup'); setFeedback('') }}>
+                <button type="button" className={cx('auth-mode-btn', mode === 'signup' && 'active')} onClick={() => { setMode('signup'); setFeedback('') }}>
                   REGISTER
                 </button>
               </div>
             </div>
 
-            <label className="auth-v4-label">HUNTER ID (EMAIL)</label>
-            <div className="auth-v4-input-wrap">
+            <label className="auth-label">HUNTER ID (EMAIL)</label>
+            <div className="auth-input-wrap">
               <input
-                className="auth-v4-input"
+                className="auth-input"
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
@@ -607,13 +607,13 @@ function AuthScreen() {
                 placeholder="hunter@zbxp.gg"
                 required
               />
-              <span className="auth-v4-input-icon">👤</span>
+              <span className="auth-input-icon">👤</span>
             </div>
 
-            <label className="auth-v4-label">ACCESS CODE</label>
-            <div className="auth-v4-input-wrap">
+            <label className="auth-label">ACCESS CODE</label>
+            <div className="auth-input-wrap">
               <input
-                className="auth-v4-input"
+                className="auth-input"
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
@@ -622,15 +622,15 @@ function AuthScreen() {
                 minLength={6}
                 required
               />
-              <span className="auth-v4-input-icon">🔒</span>
+              <span className="auth-input-icon">🔒</span>
             </div>
 
             {mode === 'signup' ? (
               <>
-                <label className="auth-v4-label">CONFIRM ACCESS CODE</label>
-                <div className="auth-v4-input-wrap">
+                <label className="auth-label">CONFIRM ACCESS CODE</label>
+                <div className="auth-input-wrap">
                   <input
-                    className="auth-v4-input"
+                    className="auth-input"
                     type="password"
                     value={confirmPassword}
                     onChange={(event) => setConfirmPassword(event.target.value)}
@@ -638,24 +638,24 @@ function AuthScreen() {
                     minLength={6}
                     required
                   />
-                  <span className="auth-v4-input-icon">🔐</span>
+                  <span className="auth-input-icon">🔐</span>
                 </div>
 
-                <label className="auth-v4-label">HUNTER NAME</label>
-                <div className="auth-v4-input-wrap">
+                <label className="auth-label">HUNTER NAME</label>
+                <div className="auth-input-wrap">
                   <input
-                    className="auth-v4-input"
+                    className="auth-input"
                     type="text"
                     value={hunterName}
                     onChange={(event) => setHunterName(event.target.value)}
                     placeholder="e.g. ShadowKing"
                     maxLength={20}
                   />
-                  <span className="auth-v4-input-icon">⚔️</span>
+                  <span className="auth-input-icon">⚔️</span>
                 </div>
               </>
             ) : (
-              <label className="auth-remember-row auth-v4-remember">
+              <label className="auth-remember-row">
                 <input
                   type="checkbox"
                   checked={rememberMe}
@@ -665,7 +665,7 @@ function AuthScreen() {
               </label>
             )}
 
-            <button className="auth-v4-submit" type="submit" disabled={isSubmitting || !hasSupabaseEnv}>
+            <button className="auth-submit" type="submit" disabled={isSubmitting || !hasSupabaseEnv}>
               {isSubmitting ? 'PLEASE WAIT...' : mode === 'signin' ? 'ENTER THE GATE' : 'FORGE IDENTITY'}
             </button>
 
@@ -682,7 +682,7 @@ function AuthScreen() {
               </button>
             </div>
 
-            <div className="auth-v4-footer-actions">
+            <div className="auth-footer-actions">
               {import.meta.env.DEV ? (
                 <button type="button" className="text-button dev-login-btn" onClick={signInDevAccount} disabled={isSubmitting || !hasSupabaseEnv}>
                   {isSubmitting ? 'Processing...' : 'Dev Login'}
