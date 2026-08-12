@@ -1039,7 +1039,7 @@
 }
 
 /* Authentication portal */
-.sl-hud .auth-shell { position: relative; min-height: 100vh; display: grid; place-items: center; overflow: hidden; background: linear-gradient(180deg, rgba(4, 8, 18, .95), rgba(11, 14, 21, .98)); color: var(--text); }
+.sl-hud.auth-shell { position: relative; min-height: 100vh; display: grid; place-items: center; overflow: hidden; background: linear-gradient(180deg, rgba(4, 8, 18, .95), rgba(11, 14, 21, .98)); color: var(--text); }
 .sl-hud .auth-bg-stage { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 .sl-hud .auth-bg-overlay { position: absolute; inset: 0; background: radial-gradient(ellipse 900px 500px at 50% -10%, rgba(43,137,255,.1), transparent 60%), linear-gradient(180deg, rgba(0,0,0,.85), rgba(0,0,0,.97)); }
 .sl-hud .auth-bg-glow { position: absolute; inset: 10% 20% auto auto; width: 360px; height: 360px; border-radius: 50%; background: radial-gradient(circle, rgba(43,137,255,.16), rgba(43,137,255,.04) 45%, transparent 70%); filter: blur(24px); }

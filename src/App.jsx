@@ -544,7 +544,7 @@ function AuthScreen() {
   }
 
   return (
-    <main className="auth-shell auth-cinematic" onMouseMove={onMouseMove}>
+    <main className="sl-hud auth-shell auth-cinematic" onMouseMove={onMouseMove}>
       <div className="auth-bg-stage" aria-hidden="true">
         <div className="auth-bg-overlay" />
         <div
