@@ -20,7 +20,7 @@ function normalizePerks(rawPerks) {
   }
 }
 
-export function usePerks() {
+export function usePerks(userId) {
   const [isLoading, setIsLoading] = useState(true)
   const [isQA, setIsQA] = useState(false)
   const [perks, setPerks] = useState(EMPTY_PERKS)
@@ -45,11 +45,7 @@ export function usePerks() {
         return
       }
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-
-      if (!session?.user?.id) {
+      if (!userId) {
         if (!isActive) return
         reset()
         setIsLoading(false)
@@ -59,7 +55,7 @@ export function usePerks() {
       const { data, error: queryError } = await supabase
         .from('profiles')
         .select('is_qa, perks')
-        .eq('id', session.user.id)
+        .eq('id', userId)
         .maybeSingle()
 
       if (!isActive) return
@@ -79,17 +75,10 @@ export function usePerks() {
 
     loadPerks()
 
-    const {
-      data: { subscription },
-    } = supabase?.auth.onAuthStateChange(() => {
-      loadPerks()
-    }) || { data: { subscription: { unsubscribe: () => {} } } }
-
     return () => {
       isActive = false
-      subscription.unsubscribe()
     }
-  }, [])
+  }, [userId])
 
   return {
     isLoading,

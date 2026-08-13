@@ -1,0 +1,124 @@
+/* Gamified core: the final, human-friendly visual layer for dashboard gameplay. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&display=swap');
+
+.sl-hud {
+  --canvas: #08090b;
+  --surface-1: #16191f;
+  --surface-2: #1f232b;
+  --surface-3: #2b2f38;
+  --hairline: #34383f;
+  --hairline-soft: rgba(178, 182, 189, .10);
+  --accent-blue: #2b89ff;
+  --accent-blue-soft: rgba(43, 137, 255, .12);
+  --ink: #f7f8f9;
+  --ink-muted: #b7bcc4;
+  --ink-subtle: #7a808c;
+  --gold-soft: rgba(212, 160, 23, .10);
+  --green-soft: rgba(47, 182, 115, .10);
+  --red-soft: rgba(224, 98, 95, .08);
+  --purple-soft: rgba(139, 124, 246, .08);
+}
+
+.sl-hud .quest-list { gap: 10px; }
+.sl-hud .quest-item { background: var(--surface-1); border-color: var(--hairline-soft); border-radius: 12px; padding: 14px 18px; transition: border-color .15s ease, background .15s ease, transform .15s ease; }
+.sl-hud .quest-item:hover { border-color: var(--hairline); background: var(--surface-2); box-shadow: none; transform: translateY(-1px); }
+.sl-hud .quest-item.is-selected { border-color: var(--accent-blue); background: var(--accent-blue-soft); box-shadow: none; }
+.sl-hud .q-study::before { background: var(--accent-blue); }
+.sl-hud .q-coding::before { background: var(--purple); box-shadow: none; }
+.sl-hud .q-gym::before { background: var(--green); }
+.sl-hud .q-business::before { background: var(--gold); }
+.sl-hud .quest-name { font: 700 14.5px Inter, sans-serif; letter-spacing: normal; color: var(--ink); margin-bottom: 3px; }
+.sl-hud .quest-desc { font: 500 12.5px/1.5 Inter, sans-serif; color: var(--ink-subtle); }
+.sl-hud .quest-xp { font: 700 12.5px Inter, sans-serif; color: var(--gold); text-shadow: none; }
+.sl-hud .quest-complete-btn { border-color: var(--accent-blue); border-radius: 7px; color: var(--accent-blue); font: 600 11.5px Inter, sans-serif; letter-spacing: .2px; padding: 6px 16px; text-transform: none; transition: background .15s ease, transform .1s ease; }
+.sl-hud .quest-complete-btn:hover { background: var(--accent-blue-soft); box-shadow: none; transform: translateY(-1px); }
+.sl-hud .quest-complete-btn:active { transform: translateY(0) scale(.97); }
+.sl-hud .quest-complete-btn.done { border-color: var(--green); color: var(--green); }
+.sl-hud .quest-complete-btn.accepted { border-color: var(--purple); color: var(--purple); }
+
+.sl-hud .daily-login-card, .sl-hud .system-alert, .sl-hud .challenge-card { background: var(--surface-1); border-color: var(--hairline-soft); border-radius: 12px; }
+.sl-hud .daily-login-card { padding: 18px 22px; }
+.sl-hud .daily-tag, .sl-hud .challenge-card::before, .sl-hud .system-alert::before { font: 600 10.5px Inter, sans-serif; letter-spacing: .5px; text-transform: none; }
+.sl-hud .daily-tag { color: var(--green); }
+.sl-hud .daily-title, .sl-hud .challenge-title { font: 700 14.5px Inter, sans-serif; color: var(--ink); }
+.sl-hud .daily-sub { font: 500 12.5px Inter, sans-serif; color: var(--ink-subtle); }
+.sl-hud .daily-sub span, .sl-hud .ch-foot span span { color: var(--gold); }
+.sl-hud .system-alert { padding: 16px 20px; }
+.sl-hud .system-alert::before { content: 'Update'; color: var(--purple); margin-bottom: 6px; }
+.sl-hud .system-alert-text { font: 500 13.5px/1.65 Inter, sans-serif; color: var(--ink-muted); }
+.sl-hud .hi { color: var(--accent-blue); }
+.sl-hud .warn { color: var(--gold); }
+.sl-hud .challenge-card { cursor: default; padding: 18px 20px; transition: border-color .15s ease, transform .15s ease; }
+.sl-hud .challenge-card:hover { border-color: var(--hairline); box-shadow: none; transform: translateY(-1px); }
+.sl-hud .challenge-card::before { content: 'Weekly challenge'; color: var(--gold); margin-bottom: 8px; }
+.sl-hud .challenge-title { margin-bottom: 12px; }
+.sl-hud .ch-track { height: 8px; background: var(--canvas); border-color: var(--hairline-soft); border-radius: 5px; }
+.sl-hud .ch-fill { background: var(--gold); border-radius: 5px; box-shadow: none; }
+.sl-hud .ch-foot { font: 500 12px Inter, sans-serif; color: var(--ink-subtle); }
+
+.sl-hud .unlock-grid { gap: 10px; }
+.sl-hud .unlock-item { background: var(--surface-1); border-color: var(--hairline-soft); border-radius: 10px; transition: border-color .15s ease, transform .15s ease; }
+.sl-hud .unlock-item:hover:not(.locked) { border-color: var(--hairline); transform: translateY(-2px) scale(1.02); }
+.sl-hud .unlock-item.unlocked { border-color: var(--gold) !important; box-shadow: none !important; }
+.sl-hud .unlock-level { font: 600 9.5px Inter, sans-serif; color: var(--ink-subtle); }
+
+.sl-hud .share-card { background: var(--surface-1); border-color: var(--hairline-soft); border-radius: 14px; padding: 24px; }
+.sl-hud .share-card::before { background: var(--accent-blue); height: 1px; opacity: .7; }
+.sl-hud .share-card-top { border-bottom-color: var(--hairline-soft); margin-bottom: 16px; padding-bottom: 16px; }
+.sl-hud .share-hunter-name { font: 800 22px Inter, sans-serif; color: var(--ink); }
+.sl-hud .share-hunter-title { font: 600 11.5px Inter, sans-serif; color: var(--gold); letter-spacing: .3px; }
+.sl-hud .share-rank { font: 800 34px Inter, sans-serif; color: var(--accent-blue); text-shadow: none; }
+.sl-hud .share-stat-val { font: 800 18px Inter, sans-serif; color: var(--ink); }
+.sl-hud .share-stat-label { font: 600 9.5px Inter, sans-serif; color: var(--ink-subtle); }
+.sl-hud .share-badge { border-radius: 7px; font: 600 10.5px Inter, sans-serif; letter-spacing: normal; padding: 4px 10px; }
+.sl-hud .share-badge.gold { color: var(--gold); border-color: rgba(212,160,23,.35); }
+.sl-hud .share-badge.cyan { color: var(--accent-blue); border-color: rgba(43,137,255,.35); }
+.sl-hud .share-badge.purple { color: var(--purple); border-color: rgba(139,124,246,.35); }
+
+.sl-hud .boss-card { background: var(--surface-1); border-color: rgba(224,98,95,.22); border-radius: 14px; padding: 22px; }
+.sl-hud .boss-card::before { background: var(--red); height: 1px; opacity: .6; animation: none; }
+.sl-hud .boss-header { margin-bottom: 16px; }
+.sl-hud .boss-tag { font: 600 10.5px Inter, sans-serif; letter-spacing: .5px; color: var(--red); }
+.sl-hud .boss-name { font: 800 19px Inter, sans-serif; color: var(--ink); text-shadow: none; }
+.sl-hud .boss-timer { font: 700 19px Inter, sans-serif; color: var(--red); text-shadow: none; animation: none; }
+.sl-hud .boss-timer-label, .sl-hud .boss-hp-label { font-family: Inter, sans-serif; color: var(--ink-subtle); }
+.sl-hud .boss-hp-label { font-size: 11.5px; margin-bottom: 7px; }
+.sl-hud .boss-hp-label span { color: var(--red); }
+.sl-hud .boss-hp-track { height: 12px; background: var(--canvas); border-color: rgba(224,98,95,.18); border-radius: 7px; margin-bottom: 14px; }
+.sl-hud .boss-hp-fill { background: var(--red); border-radius: 7px; box-shadow: none; }
+.sl-hud .reward-chip { background: var(--surface-2); border-radius: 7px; font: 600 10.5px Inter, sans-serif; letter-spacing: normal; padding: 5px 12px; }
+.sl-hud .reward-chip.xp { color: var(--accent-blue); border-color: rgba(43,137,255,.3); }
+
+.sl-hud .skill-tree { gap: 14px; }
+.sl-hud .skill-branch { background: var(--surface-1); border-color: var(--hairline-soft); border-radius: 12px; padding: 16px; }
+.sl-hud .skill-branch-title { font: 700 10.5px Inter, sans-serif; letter-spacing: .5px; margin-bottom: 12px; }
+.sl-hud .skill-node { background: var(--canvas); border-color: var(--hairline-soft); border-radius: 9px; padding: 12px; margin-bottom: 9px; transition: border-color .15s ease, background .15s ease, transform .15s ease; }
+.sl-hud .skill-node:hover:not(.locked) { border-color: var(--hairline); background: var(--surface-2); transform: translateY(-1px); }
+.sl-hud .skill-node.unlocked { border-color: var(--accent-blue); background: var(--accent-blue-soft); }
+.sl-hud .skill-node-name { font: 700 12.5px Inter, sans-serif; color: var(--ink); }
+.sl-hud .skill-node-desc { font: 500 11.5px/1.55 Inter, sans-serif; color: var(--ink-subtle); }
+.sl-hud .skill-node-cost { font: 700 11px Inter, sans-serif; }
+
+.sl-hud .raid-card, .sl-hud .party-panel { background: var(--surface-1); border-color: rgba(139,124,246,.22); border-radius: 14px; }
+.sl-hud .raid-card { padding: 20px 22px; }
+.sl-hud .raid-card::before { content: 'Guild raid · active'; font: 600 10.5px Inter, sans-serif; letter-spacing: .5px; color: var(--purple); text-transform: none; }
+.sl-hud .raid-title { font: 700 15.5px Inter, sans-serif; color: var(--ink); }
+.sl-hud .raid-track { height: 9px; background: var(--canvas); border-color: rgba(139,124,246,.18); border-radius: 5px; }
+.sl-hud .raid-fill { background: var(--purple); border-radius: 5px; box-shadow: none; }
+.sl-hud .raid-foot { font: 500 11.5px Inter, sans-serif; color: var(--ink-subtle); }
+.sl-hud .raid-foot span { color: var(--purple); }
+.sl-hud .party-panel { padding: 20px 22px; }
+.sl-hud .party-grid { gap: 10px; }
+.sl-hud .party-member-row { background: var(--canvas); border-color: var(--hairline-soft); border-radius: 10px; padding: 13px 16px; transition: border-color .15s ease, background .15s ease, transform .15s ease; }
+.sl-hud .party-member-row:hover { border-color: rgba(139,124,246,.35); background: var(--purple-soft); transform: translateY(-1px); }
+.sl-hud .pm-status.online { background: var(--green); box-shadow: none; animation: none; }
+.sl-hud .pm-status.away { background: var(--gold); box-shadow: none; }
+.sl-hud .pm-status.offline { background: var(--ink-subtle); }
+.sl-hud .pm-name { font: 700 12.5px Inter, sans-serif; color: var(--ink); }
+.sl-hud .pm-quests { font: 500 11.5px Inter, sans-serif; color: var(--ink-subtle); }
+.sl-hud .pm-quests span { color: var(--accent-blue); }
+
+.sl-hud .guild-v4-row, .sl-hud .leaderboard-v4-row { background: var(--surface-1); border-color: var(--hairline-soft); border-radius: 10px; transition: border-color .15s ease, transform .15s ease; }
+.sl-hud .guild-v4-row:hover, .sl-hud .leaderboard-v4-row:hover { border-color: var(--hairline); box-shadow: none; transform: translateY(-1px); }
+.sl-hud .leaderboard-v4-row strong { color: var(--ink); }
+.sl-hud .quest-complete-btn:focus-visible, .sl-hud .raid-member:focus-visible, .sl-hud .quest-item:focus-visible, .sl-hud .skill-node:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }

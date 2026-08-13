@@ -3,6 +3,7 @@ import { BrowserRouter } from 'react-router-dom'
 import { registerSW } from 'virtual:pwa-register'
 import './index.css'
 import './hud.css'
+import './gamifiedCore.css'
 import App from './App.jsx'
 import { debugSupabase } from './debugSupabase'
 

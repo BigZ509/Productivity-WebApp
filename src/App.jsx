@@ -966,7 +966,7 @@ function DashboardPage({ onProfileRefresh, onXpGain }) {
 
       <div className="daily-login-card">
         <div>
-          <div className="daily-tag">✦ DAILY LOGIN BONUS</div>
+          <div className="daily-tag">✦ Daily check-in</div>
           <div className="daily-title">Day 4 Reward Available</div>
           <div className="daily-sub">
             Streak bonus: <span>+10 XP</span> - claim before midnight
@@ -1015,13 +1015,13 @@ function DashboardPage({ onProfileRefresh, onXpGain }) {
 
       <div id="active-missions" className="panel">
         <div className="panel-title">Active Missions</div>
-        <div className="panel-sub">// your current active quests - live from quest system</div>
+        <div className="panel-sub">Your current missions, kept in sync with your quest progress.</div>
         <div className="quest-list">
           <article className="quest-item q-study">
             <div className="quest-icon">📖</div>
             <div className="quest-info">
               <div className="quest-name">Study Progress Mission</div>
-              <div className="quest-desc">// review and complete from your live quest list</div>
+              <div className="quest-desc">Review and complete work from your active quest list.</div>
             </div>
             <div className="quest-xp">LIVE</div>
             <NavLink to="/quests" className="quest-complete-btn">Open</NavLink>
@@ -1030,7 +1030,7 @@ function DashboardPage({ onProfileRefresh, onXpGain }) {
             <div className="quest-icon">💻</div>
             <div className="quest-info">
               <div className="quest-name">Coding Progress Mission</div>
-              <div className="quest-desc">// select and clear coding quests to gain XP</div>
+              <div className="quest-desc">Choose and complete coding quests to earn XP.</div>
             </div>
             <div className="quest-xp">LIVE</div>
             <NavLink to="/quests" className="quest-complete-btn">Open</NavLink>
@@ -1039,7 +1039,7 @@ function DashboardPage({ onProfileRefresh, onXpGain }) {
             <div className="quest-icon">⚔️</div>
             <div className="quest-info">
               <div className="quest-name">Training Mission</div>
-              <div className="quest-desc">// log workouts and keep your streak active</div>
+              <div className="quest-desc">Log workouts and keep your streak going.</div>
             </div>
             <div className="quest-xp">LIVE</div>
             <NavLink to="/gym" className="quest-complete-btn">Open</NavLink>
@@ -1049,7 +1049,7 @@ function DashboardPage({ onProfileRefresh, onXpGain }) {
 
       <div id="unlock-grid" className="panel">
         <div className="panel-title">Hunter Unlocks</div>
-        <div className="panel-sub">// rank up to reveal titles, avatars, and abilities</div>
+        <div className="panel-sub">Level up to reveal titles, avatars, and abilities.</div>
         <div className="unlock-grid">
           <div className="unlock-item unlocked" style={{ border: '1px solid rgba(245,158,11,0.5)', boxShadow: '0 0 14px rgba(245,158,11,0.15)' }}><div className="unlock-emoji">🗡️</div><div className="unlock-level">LVL 1</div></div>
           <div className="unlock-item unlocked" style={{ border: '1px solid rgba(245,158,11,0.5)', boxShadow: '0 0 14px rgba(245,158,11,0.15)' }}><div className="unlock-emoji">🛡️</div><div className="unlock-level">LVL 1</div></div>
@@ -1064,7 +1064,7 @@ function DashboardPage({ onProfileRefresh, onXpGain }) {
         <div className="share-card-top">
           <div>
             <div className="share-hunter-name">{pathConfig.title}</div>
-            <div className="share-hunter-title">// {pathConfig.worldLabel} - {rank} RANK</div>
+            <div className="share-hunter-title">{pathConfig.worldLabel} · {rank} rank</div>
           </div>
           <div className="share-rank">{rank}</div>
         </div>
@@ -1075,8 +1075,8 @@ function DashboardPage({ onProfileRefresh, onXpGain }) {
         </div>
         <div className="share-badges">
           <div className="share-badge gold">{pathConfig.worldLabel}</div>
-          <div className="share-badge cyan">{rank}-RANK HUNTER</div>
-          <div className="share-badge purple">ZBXP CLOSED BETA</div>
+          <div className="share-badge cyan">{rank} rank hunter</div>
+          <div className="share-badge purple">ZBXP beta</div>
         </div>
         <div className="actions">
           <button
@@ -4132,10 +4132,11 @@ function App() {
   const perksState = usePerks(session?.user?.id || null)
 
   const fetchProfile = async (user) => {
+    // Keep the first screen responsive when the network or Supabase is unavailable.
+    // Users can explicitly retry from the recovery screen below.
     const attempts = [
-      { timeoutMs: 20000, backoffMs: 400 },
-      { timeoutMs: 20000, backoffMs: 800 },
-      { timeoutMs: 20000, backoffMs: 1200 },
+      { timeoutMs: 7000, backoffMs: 400 },
+      { timeoutMs: 7000, backoffMs: 0 },
     ]
     let lastError = null
 
@@ -4250,7 +4251,9 @@ function App() {
 
         let sessionData = null
         let lastAuthError = null
-        const authAttempts = [20000, 20000, 20000]
+        // getSession normally resolves from local storage. A short timeout prevents
+        // a stalled auth client from trapping the entire application on Loading.
+        const authAttempts = [5000]
         for (let i = 0; i < authAttempts.length; i += 1) {
           try {
             const { data, error } = await withTimeout(
@@ -4316,7 +4319,7 @@ function App() {
       if (!isActive) return
       setBootError((prev) => prev || 'Auth bootstrap timed out. Use Retry Profile Load or sign in again.')
       setIsBooting(false)
-    }, 30000)
+    }, 8000)
 
     const {
       data: { subscription },
