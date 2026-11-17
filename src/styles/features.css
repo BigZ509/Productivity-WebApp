@@ -94,6 +94,19 @@
   color: var(--muted);
 }
 
+@media (max-width: 899px) {
+  .auth-layout {
+    gap: var(--s5);
+    padding-top: var(--s5);
+  }
+
+  /* Returning users should reach the form without scrolling. */
+  .loop-list,
+  .auth-hero__lede {
+    display: none;
+  }
+}
+
 @media (min-width: 900px) {
   .auth-layout {
     grid-template-columns: 1.1fr 0.9fr;

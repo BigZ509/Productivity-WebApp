@@ -102,9 +102,7 @@ export default function CharacterPage() {
           <RankEmblem rank={snap.rankInfo.rank} size={132} />
         </div>
         <div className="char-hero__body">
-          <p className="eyebrow">
-            {pathConfig.characterTitle} · {pathConfig.title}
-          </p>
+          <p className="eyebrow">{pathConfig.characterTitle}</p>
           <h1 id="char-name" className="char-hero__name">
             {profile.displayName}
           </h1>

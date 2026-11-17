@@ -135,8 +135,8 @@ function ActiveMissions({ pathConfig }) {
       <AsyncBlock slice={activeQuests} rows={3}>
         {(items) =>
           items.length === 0 ? (
-            <EmptyState icon={ScrollText} title="No active quests">
-              Accepted quests appear here until you complete them.
+            <EmptyState icon={ScrollText} title={`No active ${pathConfig.questNounPlural.toLowerCase()}`}>
+              Accepted {pathConfig.questNounPlural.toLowerCase()} appear here until you complete them.
             </EmptyState>
           ) : (
             <ul className="mission-list">
@@ -272,7 +272,7 @@ function WeeklyProgress({ week }) {
           <dd className="tabular">{week.focusSessions}</dd>
         </div>
         <div className="stat">
-          <dt>Active days</dt>
+          <dt>Days</dt>
           <dd className="tabular">{week.activeDays}/7</dd>
         </div>
       </dl>

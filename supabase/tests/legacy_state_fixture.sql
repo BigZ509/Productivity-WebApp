@@ -13,11 +13,13 @@ declare
   q uuid;
   aq uuid;
 begin
-  insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data)
+  -- GoTrue requires empty strings (not NULL) in the token columns.
+  insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data,
+    confirmation_token, recovery_token, email_change_token_new, email_change)
   values
-    (u_a, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'legacy-a@zbxp.test', '', now(), now() - interval '30 days', now(), '{}', '{}'),
-    (u_b, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'legacy-b@zbxp.test', '', now(), now() - interval '20 days', now(), '{}', '{}'),
-    (u_c, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'legacy-c@zbxp.test', '', now(), now() - interval '10 days', now(), '{}', '{}')
+    (u_a, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'legacy-a@zbxp.test', '', now(), now() - interval '30 days', now(), '{}', '{}', '', '', '', ''),
+    (u_b, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'legacy-b@zbxp.test', '', now(), now() - interval '20 days', now(), '{}', '{}', '', '', '', ''),
+    (u_c, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'legacy-c@zbxp.test', '', now(), now() - interval '10 days', now(), '{}', '{}', '', '', '', '')
   on conflict (id) do nothing;
 
   insert into public.profiles (id, username, path, xp_total, total_xp, created_at)

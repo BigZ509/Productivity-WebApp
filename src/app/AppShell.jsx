@@ -103,8 +103,12 @@ export function AppShell() {
     setMoreOpen(false)
   }
 
-  // Move focus to the main region on navigation for keyboard/screen readers.
+  // On in-app navigation, move focus to the main region for keyboard and
+  // screen-reader users. Skipped on first load so Tab reaches the skip link.
+  const prevPathRef = useRef(location.pathname)
   useEffect(() => {
+    if (prevPathRef.current === location.pathname) return
+    prevPathRef.current = location.pathname
     window.scrollTo({ top: 0 })
     mainRef.current?.focus({ preventScroll: true })
   }, [location.pathname])

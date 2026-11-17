@@ -1,13 +1,20 @@
 {
   "name": "zbxp",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:e2e": "playwright test",
+    "db:start": "supabase start -x vector,logflare,imgproxy,edge-runtime,supavisor",
+    "db:verify": "./scripts/verify-migration.sh",
+    "demo:seed": "node scripts/demo-seed.mjs",
+    "demo:reset": "node scripts/demo-seed.mjs --reset"
   },
   "dependencies": {
     "@fontsource-variable/manrope": "5.3.0",

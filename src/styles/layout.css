@@ -88,6 +88,7 @@
 
 .brand-mark__path {
   margin-left: 2px;
+  white-space: nowrap;
   padding: 2px 8px;
   font-size: var(--fs-xs);
   font-weight: 600;
