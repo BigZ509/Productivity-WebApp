@@ -12,7 +12,9 @@
 | Lint | `npm run lint` | ✅ 0 errors, 0 warnings |
 | Production build | `npm run build` | ✅ no warnings. Largest chunk 230 kB (React), down from a single 505 kB chunk |
 | Unit tests | `npm test` | ✅ **24/24** |
-| Migration replay on legacy data | `npm run db:verify` | ✅ **12/12** assertions |
+| Migration replay on legacy data (both phases) | `npm run db:verify` | ✅ **20/20** assertions |
+| Pre-rescue frontend vs. Phase A only | `tests/compat/old-frontend-smoke.mjs` | ✅ all flows that work on the untouched schema still work |
+| Pre-rescue frontend vs. Phase A + B | same, `EXPECT=breaks` | ✅ breaks as designed (cutover) |
 | DB/API integration | `npm run test:integration` | ✅ **32/32** |
 | Browser E2E (incl. PWA on a production build) | `npm run test:e2e` | ✅ **10/10** |
 
@@ -24,7 +26,11 @@
 
 ## Migration verification (`scripts/verify-migration.sh`)
 
-Resets the local DB to the last pre-rescue migration, loads `supabase/tests/legacy_state_fixture.sql` (split `xp_total`/`total_xp` balances, client-only XP, completed quests stuck in `active`, an open legacy guild), applies the rescue migration, then asserts:
+Resets the local DB to the last pre-rescue migration and loads `supabase/tests/legacy_state_fixture.sql` (split `xp_total`/`total_xp` balances, client-only XP, completed quests stuck in `active`, an open legacy guild).
+
+**After Phase A only** (8 assertions): anon has no EXECUTE and no table access; the old frontend's profile writes and RPCs are still granted; `_award_xp` is not callable; no data changed; no ledger rows added; the legacy unique constraint is intact.
+
+**After Phase A + B** (12 assertions):
 
 1. every balance equals its ledger sum
 2. `total_xp` mirrors `xp_total`
@@ -37,7 +43,19 @@ Resets the local DB to the last pre-rescue migration, loads `supabase/tests/lega
 9. `anon` can execute **zero** non-extension functions in `public`
 10. `authenticated` has no UPDATE on `profiles.xp_total`
 11. `authenticated` cannot SELECT `groups.invite_code`
-12. rerunning the migration adds no ledger rows (idempotent)
+12. rerunning both migrations adds no ledger rows (idempotent)
+
+## Old-frontend compatibility (the two-phase rollout)
+
+The pre-rescue frontend (`main` @ `fbaaf8f`) was run from a git worktree against the local stack and driven through every write path it uses: profile bootstrap (direct upsert), path choice (direct UPDATE), daily claim (direct XP UPDATE), quest accept (`select_quest`), quest complete (`complete_quest` + XP fallback), guild create (`create_guild`), join by code, leaderboard (`get_leaderboard`), workout (`log_workout`).
+
+| Database state | Result |
+|---|---|
+| Pre-rescue schema (baseline) | 8/9 pass. **Guild create fails** with SQL 42702 (ambiguous `group_id` in the repo's `create_guild`): a pre-existing bug. |
+| + Phase A | **Same 8/9**, 0 permission errors, so Phase A is safe to apply while the old frontend is live |
+| + Phase A + B | Old frontend breaks from path choice onward (7 permission errors), which is why Phase B ships with the new frontend |
+
+Production's `create_guild` may differ from the repo (its functions have drifted), so the baseline bug may or may not exist live.
 
 ## Integration tests (real Postgres + PostgREST + GoTrue, real user sessions)
 

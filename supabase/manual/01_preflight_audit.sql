@@ -1,6 +1,7 @@
 -- =====================================================================
 -- ZBXP pre-migration audit (READ ONLY). Run in the Supabase SQL editor
--- against production BEFORE applying 20261117000100. Nothing is changed.
+-- against production before EACH migration phase (20261117000100 phase A,
+-- 20261117000200 phase B). Nothing is changed.
 -- =====================================================================
 
 -- 1. XP reconciliation preview: what each profile's canonical XP will be.

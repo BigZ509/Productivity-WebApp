@@ -44,7 +44,7 @@ All SECURITY DEFINER functions added by the migration use `set search_path = ''`
 1. **Run `supabase/manual/01_preflight_audit.sql`** (read-only) in the production SQL editor. Review the reconciliation preview and the list of `@test.com` accounts.
 2. **Deactivate the leaked QA account** if it exists (it may have been created by the old migration or the old in-app "Dev Login" button, which signed up `test@test.com` with the same password). Use `supabase/manual/02_qa_account_remediation.sql`: ban it and revoke its sessions, or delete it. Treat the old password as public.
 3. If any real account reused that password, force a password reset.
-4. Apply `20261117000100_integrity_and_security.sql`; see [DEPLOYMENT.md](DEPLOYMENT.md).
+4. Apply **Phase A** (`20261117000100_phase_a_additive_hardening.sql`) now: it closes findings #3 (anonymous EXECUTE, including `recalculate_streaks`) and anonymous table access without affecting the live frontend. Apply **Phase B** at the cutover to close the rest. See [DEPLOYMENT.md](DEPLOYMENT.md).
 5. Keep Google OAuth disabled until it is configured, then set `VITE_ENABLE_GOOGLE_AUTH=true` and add `https://<domain>/auth/callback` to Auth → Redirect URLs.
 6. Provision demo access only on a **separate QA project** with `node scripts/demo-seed.mjs --reset --remote` (with `DEMO_ALLOW_REMOTE=yes`) and credentials from a secret store.
 

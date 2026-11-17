@@ -40,6 +40,6 @@ Run `npm run demo:reset` between demos to restore the exact starting state (470 
 
 ## If something goes wrong
 
-- *"The server is missing a required update"*: the target database lacks migration `20261117000100`.
+- *"The server is missing a required update"*: the target database lacks the rescue migrations (`20261117000100` and `20261117000200`).
 - Sign-in fails: rerun `npm run demo:reset` (it also resets the password from your env).
 - The timer says "Not recorded (offline)": the start call failed (network). The timer still runs but awards nothing.

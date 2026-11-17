@@ -1,5 +1,6 @@
 -- Test-only fixture: reproduces the data shapes the pre-rescue app wrote,
--- so 20261117000100_integrity_and_security.sql can be verified against them.
+-- so the rescue migrations (20261117000100 phase A, 20261117000200 phase B) can
+-- be verified against them.
 -- Run ONLY against a local database BEFORE applying that migration.
 
 alter table public.profiles add column if not exists total_xp integer not null default 0;
