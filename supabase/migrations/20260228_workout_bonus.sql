@@ -5,6 +5,10 @@
 -- - 45 min run:  +15 XP
 -- ============================================================
 
+-- The return type changes from void to a table, which CREATE OR REPLACE cannot do.
+-- Dropping first keeps this migration replayable on a fresh database.
+drop function if exists public.log_workout(date, boolean, jsonb);
+
 create or replace function public.log_workout(
   p_date date,
   p_completed boolean,
