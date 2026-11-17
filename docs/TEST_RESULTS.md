@@ -106,7 +106,8 @@ Screenshots from these runs are in [`docs/screenshots/`](screenshots/).
 
 ## Not verified
 
-- Production database migration and production/preview deployment (no privileged access; intentionally not applied automatically).
+- Production database migration (no privileged access; intentionally not applied automatically).
+- Vercel: the PR's preview **build succeeded** (Vercel check passed), but the preview URL is behind Vercel Deployment Protection (HTTP 302 to login), so it was not browser-tested. It also points at the unmigrated production database, so signed-in screens will show the "missing a required update" notice until the migration is applied.
 - Google OAuth (disabled in the live project; the button is hidden unless `VITE_ENABLE_GOOGLE_AUTH=true`).
 - Real multi-device sync timing on physical phones (emulated viewports only).
 - Firefox/WebKit (Chromium only).
