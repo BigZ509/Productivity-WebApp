@@ -440,6 +440,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_uid uuid := public._require_uid();
 begin
@@ -502,6 +503,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_uid uuid := public._require_uid();
   v_limit constant integer := 5;
@@ -587,6 +589,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_uid uuid := public._require_uid();
   v_instance record;
@@ -694,6 +697,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_uid uuid := public._require_uid();
   v_log_id uuid;
@@ -755,6 +759,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_uid uuid := public._require_uid();
   v_id uuid;
@@ -790,6 +795,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_uid uuid := public._require_uid();
   v_s record;
@@ -883,6 +889,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_uid uuid := public._require_uid();
   v_name text := btrim(coalesce(p_name, ''));
@@ -960,6 +967,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_uid uuid := public._require_uid();
   v_code text := upper(btrim(coalesce(p_code, '')));
@@ -986,6 +994,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_uid uuid := public._require_uid();
   v_group record;
@@ -1098,6 +1107,7 @@ stable
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_uid uuid := public._require_uid();
   v_start timestamptz;
