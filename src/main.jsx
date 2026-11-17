@@ -1,32 +1,27 @@
+import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
-import { registerSW } from 'virtual:pwa-register'
-import './index.css'
-import './hud.css'
-import './gamifiedCore.css'
-import App from './App.jsx'
-import { debugSupabase } from './debugSupabase'
+import '@fontsource/chakra-petch/500.css'
+import '@fontsource/chakra-petch/600.css'
+import '@fontsource/chakra-petch/700.css'
+import '@fontsource-variable/manrope/wght.css'
+import './styles/tokens.css'
+import './styles/base.css'
+import './styles/layout.css'
+import './styles/components.css'
+import './styles/features.css'
+import App from './app/App.jsx'
 
-if (import.meta.env.DEV) {
-  window.debugSupabase = debugSupabase
-}
-
-if (import.meta.env.DEV && typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-  // Prevent stale PWA caches from serving old hashed bundles during rapid local iterations.
-  navigator.serviceWorker.getRegistrations().then((registrations) => {
-    registrations.forEach((registration) => registration.unregister())
-  })
-  if ('caches' in window) {
-    caches.keys().then((keys) => keys.forEach((key) => caches.delete(key)))
-  }
-}
-
-if (import.meta.env.PROD) {
-  registerSW({ immediate: true })
+if (import.meta.env.DEV && 'serviceWorker' in navigator) {
+  // Service workers only run in production builds; remove any left over from
+  // a previous `vite preview` so local development never serves stale assets.
+  navigator.serviceWorker.getRegistrations().then((regs) => regs.forEach((r) => r.unregister()))
 }
 
 createRoot(document.getElementById('root')).render(
-  <BrowserRouter>
-    <App />
-  </BrowserRouter>,
+  <StrictMode>
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  </StrictMode>,
 )

@@ -1,22 +1,33 @@
 {
   "name": "zbxp",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:e2e": "playwright test",
+    "db:start": "supabase start -x vector,logflare,imgproxy,edge-runtime,supavisor",
+    "db:verify": "./scripts/verify-migration.sh",
+    "demo:seed": "node scripts/demo-seed.mjs",
+    "demo:reset": "node scripts/demo-seed.mjs --reset"
   },
   "dependencies": {
+    "@fontsource-variable/manrope": "5.3.0",
+    "@fontsource/chakra-petch": "5.3.0",
     "@supabase/supabase-js": "^2.97.0",
+    "lucide-react": "1.66.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.13.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@playwright/test": "1.64.0",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
@@ -24,8 +35,10 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "supabase": "2.122.1",
     "vite": "^8.0.0-beta.13",
-    "vite-plugin-pwa": "^1.2.0"
+    "vite-plugin-pwa": "^1.2.0",
+    "vitest": "5.1.0"
   },
   "overrides": {
     "vite": "^8.0.0-beta.13"

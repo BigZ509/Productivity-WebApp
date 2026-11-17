@@ -1,0 +1,101 @@
+/* ZBXP design tokens. Both paths share one token set; [data-path] swaps the
+   accent family, corner geometry, background motif and motion timing. */
+
+:root {
+  /* Surfaces */
+  --bg: #080d18;
+  --bg-raised: #0c1322;
+  --surface: #111b2b;
+  --surface-2: #192638;
+  --surface-3: #22324a;
+  --line: rgba(152, 167, 187, 0.13);
+  --line-strong: rgba(152, 167, 187, 0.24);
+
+  /* Ink */
+  --text: #f1f4f9;
+  --text-2: #c6d0dd;
+  --muted: #98a7bb;
+  --faint: #6f7f96;
+
+  /* Semantic */
+  --gold: #e8b95d;
+  --gold-strong: #f3cf86;
+  --gold-soft: rgba(232, 185, 93, 0.13);
+  --gold-line: rgba(232, 185, 93, 0.4);
+  --success: #56d7a1;
+  --success-soft: rgba(86, 215, 161, 0.12);
+  --error: #f1747e;
+  --error-soft: rgba(241, 116, 126, 0.12);
+  --info-soft: rgba(152, 167, 187, 0.1);
+
+  /* Path accent (Hunter default) */
+  --accent: #4da8ff;
+  --accent-strong: #84c3ff;
+  --accent-ink: #04101f;
+  --accent-soft: rgba(77, 168, 255, 0.12);
+  --accent-line: rgba(77, 168, 255, 0.4);
+  --accent-glow: rgba(77, 168, 255, 0.26);
+  --accent-grad: linear-gradient(135deg, #4da8ff 0%, #2f7fe0 100%);
+
+  /* Type */
+  --font-display: 'Chakra Petch', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'Manrope Variable', 'Manrope', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.8125rem;
+  --fs-base: 0.9375rem;
+  --fs-md: 1.0625rem;
+  --fs-lg: 1.25rem;
+  --fs-xl: 1.625rem;
+  --fs-2xl: clamp(1.75rem, 1.2rem + 1.8vw, 2.5rem);
+
+  /* Shape */
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --cut: 12px; /* chamfer size for Hunter geometry */
+  --btn-radius: 4px;
+
+  /* Space */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 24px;
+  --s7: 32px;
+  --s8: 48px;
+
+  /* Elevation */
+  --shadow-1: 0 1px 0 rgba(255, 255, 255, 0.025) inset, 0 10px 30px -18px rgba(0, 0, 0, 0.8);
+  --shadow-2: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 24px 60px -24px rgba(0, 0, 0, 0.85);
+
+  /* Motion */
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --dur-slow: 420ms;
+
+  /* Layout */
+  --sidebar-w: 248px;
+  --content-max: 1240px;
+  --bottom-nav-h: 64px;
+}
+
+/* Heavenly Demon: deep ember. Same structure, softer geometry, slower motion. */
+[data-path='HEAVENLY_DEMON'] {
+  --bg: #0a0b14;
+  --bg-raised: #0f101b;
+  --accent: #ff655b;
+  --accent-strong: #ff8f87;
+  --accent-ink: #1c0604;
+  --accent-soft: rgba(255, 101, 91, 0.11);
+  --accent-line: rgba(255, 101, 91, 0.4);
+  --accent-glow: rgba(255, 101, 91, 0.24);
+  --accent-grad: linear-gradient(135deg, #ff655b 0%, #c9362f 100%);
+  --cut: 0px;
+  --btn-radius: 999px;
+  --radius: 12px;
+  --radius-lg: 18px;
+  --dur: 260ms;
+  --dur-slow: 560ms;
+}

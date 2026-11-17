@@ -26,3 +26,9 @@ node_modules
 dist
 .env
 .DS_Store
+
+# Test output
+dist-e2e
+dev-dist
+playwright-report
+test-results

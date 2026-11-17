@@ -1,15 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="ZBXP icon">
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="ZBXP">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#0b0f1c"/>
-      <stop offset="100%" stop-color="#111827"/>
-    </linearGradient>
-    <linearGradient id="line" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#00c8ff"/>
-      <stop offset="100%" stop-color="#7c3aed"/>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4DA8FF"/>
+      <stop offset="1" stop-color="#E8B95D"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
-  <rect x="54" y="54" width="404" height="404" rx="64" fill="none" stroke="url(#line)" stroke-width="12"/>
-  <text x="256" y="302" text-anchor="middle" fill="#e2e8f0" font-size="130" font-family="Orbitron, Arial, sans-serif" font-weight="700">ZB</text>
+  <rect width="512" height="512" rx="112" fill="#080D18"/>
+  <polygon points="256.0,56.3 428.9,156.2 428.9,355.8 256.0,455.7 83.1,355.8 83.1,156.2" fill="#111B2B" stroke="url(#g)" stroke-width="17.9" stroke-linejoin="round"/>
+  <polygon points="256.0,96.3 394.3,176.1 394.3,335.9 256.0,415.7 117.7,335.9 117.7,176.1" fill="none" stroke="#4DA8FF" stroke-opacity="0.35" stroke-width="6.1"/>
+  <text x="256.0" y="256.0" text-anchor="middle" dominant-baseline="central" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="190" fill="#F1F4F9">Z</text>
 </svg>
