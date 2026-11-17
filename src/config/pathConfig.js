@@ -1,36 +1,59 @@
-export const PATH_KEYS = ['HEAVENLY_DEMON', 'HUNTER']
+export const PATH_KEYS = ['HUNTER', 'HEAVENLY_DEMON']
 
+// Both paths share one architecture; only identity, vocabulary and theme differ.
 export const PATH_CONFIG = {
-  HEAVENLY_DEMON: {
-    key: 'HEAVENLY_DEMON',
-    title: 'Heavenly Demon',
-    subtitle: 'Cultivation of discipline and mastery',
-    worldLabel: 'Demon Realm',
-    shellTitle: 'Heavenly Demon Command',
-    dashboardTitle: 'Cultivation Protocol',
-    dashboardFlavor:
-      'Forge ruthless consistency: every quest is a trial, every stat is forged through repetition and discipline.',
-    questBoardTitle: 'Cultivation Quest Board',
-    questBoardFlavor: 'Take only what you can complete. Precision is stronger than chaos.',
-    gymTitle: 'Body Tempering Hall',
-    gymFlavor: 'Refine the vessel. Repeatable physical discipline compounds with mental focus.',
-    accent: '#ff7c68',
-    accentSoft: 'rgba(255, 124, 104, 0.22)',
-  },
   HUNTER: {
     key: 'HUNTER',
     title: 'Hunter',
-    subtitle: 'Guild progression through raids and dungeons',
-    worldLabel: 'Hunter Association',
-    shellTitle: 'Hunter Operations Desk',
-    dashboardTitle: 'Raid Progression Board',
-    dashboardFlavor:
-      'Stack clean reps, clear dungeons, and push rank. Team strategy and execution unlock faster progression.',
-    questBoardTitle: 'Guild Quest Board',
-    questBoardFlavor: 'Pick high-leverage quests, run them cleanly, and climb the leaderboard.',
+    tagline: 'Clear gates. Climb ranks. Raid with your guild.',
+    description:
+      'Treat each piece of work as a gate to clear. Fast, precise, built for momentum and team competition.',
+    questNoun: 'Quest',
+    questNounPlural: 'Quests',
+    boardTitle: 'Quest Board',
+    boardLede: 'Pick the work that moves you forward. Accept it, do it, claim it.',
+    focusTitle: 'Focus Chamber',
+    focusLede: 'One quest. One timer. Nothing else.',
     gymTitle: 'Training Grounds',
-    gymFlavor: 'Physical readiness boosts mission performance. Stay consistent and keep your streak alive.',
-    accent: '#6db6ff',
-    accentSoft: 'rgba(109, 182, 255, 0.22)',
+    gymLede: 'Log real sessions. Consistency builds the streak.',
+    guildTitle: 'Guild Hall',
+    characterTitle: 'Hunter Profile',
+    welcome: 'Ready for the next gate',
   },
+  HEAVENLY_DEMON: {
+    key: 'HEAVENLY_DEMON',
+    title: 'Heavenly Demon',
+    tagline: 'Cultivate discipline. Refine mastery. Ascend.',
+    description:
+      'Treat each piece of work as a trial of discipline. Deliberate, relentless, built for mastery over time.',
+    questNoun: 'Trial',
+    questNounPlural: 'Trials',
+    boardTitle: 'Trial Scrolls',
+    boardLede: 'Take only what you will finish. Precision outlasts ambition.',
+    focusTitle: 'Meditation Chamber',
+    focusLede: 'Still the mind. Hold one intention until the bell.',
+    gymTitle: 'Body Tempering Hall',
+    gymLede: 'Temper the vessel. Every logged session refines it.',
+    guildTitle: 'Sect Hall',
+    characterTitle: 'Cultivation Record',
+    welcome: 'Your cultivation continues',
+  },
+}
+
+export function getPathConfig(pathKey) {
+  return PATH_CONFIG[pathKey] || PATH_CONFIG.HUNTER
+}
+
+export const CATEGORY_META = {
+  coding: { label: 'Coding', short: 'Code' },
+  study: { label: 'Study', short: 'Study' },
+  business: { label: 'Business', short: 'Business' },
+  gym: { label: 'Fitness', short: 'Fitness' },
+  general: { label: 'General', short: 'General' },
+}
+
+export const DIFFICULTY_META = {
+  easy: { label: 'Easy', pips: 1 },
+  medium: { label: 'Medium', pips: 2 },
+  hard: { label: 'Hard', pips: 3 },
 }
